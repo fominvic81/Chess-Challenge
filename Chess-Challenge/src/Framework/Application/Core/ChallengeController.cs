@@ -56,6 +56,7 @@ namespace ChessChallenge.Application
 
         public ChallengeController()
         {
+            Log($"Launching Chess-Challenge version {Settings.Version}");
             tokenCount = GetTokenCount();
             Warmer.Warm();
 
@@ -229,8 +230,9 @@ namespace ChessChallenge.Application
                 {
                     moveToPlay = chosenMove;
                     isWaitingToPlayMove = true;
-                    const float minDelay = 0.1f;
-                    playMoveTime = lastMoveMadeTime + (EnableMoveDelay ? minDelay : 0);
+
+                    playMoveTime = lastMoveMadeTime + (EnableMoveDelay ? MinMoveDelay : 0);
+
                 }
                 else
                 {
