@@ -59,6 +59,12 @@ namespace ChessChallenge.Application
             // Window and quit buttons
             buttonPos.Y += breakSpacing;
 
+            string delayButtonName = controller.EnableMoveDelay ? "Disable Move Delay" : "Enable Move Delay";
+            if (NextButtonInRow(delayButtonName, ref buttonPos, spacing, buttonSize))
+            {
+                controller.EnableMoveDelay = !controller.EnableMoveDelay;
+            }
+
             bool isBigWindow = Raylib.GetScreenWidth() > Settings.ScreenSizeSmall.X;
             string windowButtonName = isBigWindow ? "Smaller Window" : "Bigger Window";
             if (NextButtonInRow(windowButtonName, ref buttonPos, spacing, buttonSize))

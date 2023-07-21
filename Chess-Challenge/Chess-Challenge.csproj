@@ -10,10 +10,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Raylib-cs" Version="4.5.0.2" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Reference Include="Microsoft.CodeAnalysis">
       <HintPath>src\Token Counter\Microsoft.CodeAnalysis.dll</HintPath>
     </Reference>
@@ -55,6 +51,10 @@
 
   <ItemGroup>
     <None Include="..\.editorconfig" Link=".editorconfig" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Raylib-cs" Version="4.5.0.2" />
   </ItemGroup>
 
 </Project>
