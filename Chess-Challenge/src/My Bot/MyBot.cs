@@ -1,48 +1,123 @@
 ﻿using ChessChallenge.API;
 using System;
-using System.Linq;
-using System.Numerics;
-using System.Collections.Generic;
-
 
 public class Entry
 {
-    public int depth;
-    public int move;
+    static public int Exact = 0;
+    static public int Alpha = 1;
+    static public int Beta = 2;
 
-    public Entry()
+    public ulong key;
+    public int depth;
+    public int value;
+    public Move move;
+    public int type;
+
+    public Entry() {}
+    public Entry (ulong key_p, int depth_p, int value_p, Move move_p, int type_p)
     {
-        depth = -1;
+        key = key_p;
+        depth = depth_p;
+        value = value_p;
+        move = move_p;
+        type = type_p;
     }
-    public Entry (int depth, int move)
+}
+
+public class TranspositionTable
+{
+    static public int lookupFailed;
+    public ulong size = 1_000_000;
+    public Entry[] entries;
+    public Board board;
+
+    public TranspositionTable()
     {
-        this.depth = depth;
-        this.move = move;
+        entries = new Entry[size];
     }
+
+
+    public void Store(int depth, int value, Move move, int type)
+    {
+        //if (entries[board.ZobristKey % size].depth >= depth) return;
+
+        entries[board.ZobristKey % size] = new Entry(board.ZobristKey, depth, value, move, type);
+    }
+
+    public int Lookup(int depth, int alpha, int beta)
+    {
+        Entry entry = entries[board.ZobristKey % size];
+
+        if (entry == null ||
+            entry.key != board.ZobristKey ||
+            entry.depth < depth) return lookupFailed;
+
+        if ((entry.type == Entry.Exact) ||
+            (entry.type == Entry.Alpha && entry.value <= alpha) ||
+            (entry.type == Entry.Beta && entry.value >= beta)) return entry.value;
+
+        return lookupFailed;
+    }
+
+    public Move LookupMove() => entries[board.ZobristKey % size]?.move ?? Move.NullMove;
 }
 
 public class MyBot : IChessBot
 {
     // Piece values:             null, pawn, knight, bishop, rook, queen, king
     public int[] pieceValues = { 0,    100,  300,    320,    500,  900,   10000 };
-    public int inf = 1000000000;
-    public bool amIWhite;
+    public const int inf = 1000000000;
+    public bool useTranspositionTable = true;
 
     public int positionsEvaluated;
     public int cutoffs;
+    public int positionsLookedUp;
+
+    public TranspositionTable TT = new();
+    int[] scores = new int[200];
 
     public Board board;
+    public Timer timer;
+    public int timeToPlay;
+    public int timeToMove;
 
-    public Move Think(Board board, Timer timer)
+    public Move bestMove;
+
+    public Move Think(Board board_param, Timer timer_param)
     {
-        this.board = board;
+        positionsEvaluated = cutoffs = positionsLookedUp = 0;
+        board = board_param;
+        timer = timer_param;
+        TT.board = board;
 
-        amIWhite = board.IsWhiteToMove;
-        Move bestMove = Search(6);
-        Console.WriteLine("############ Info ###############");
-        Console.WriteLine("Time: " + timer.MillisecondsElapsedThisTurn + " Cutoffs: " + cutoffs + " Positions: " + positionsEvaluated);
+        if (timeToPlay == 0) timeToPlay = timer.MillisecondsRemaining;
+        timeToMove = timer.MillisecondsRemaining / Math.Max(10, 40 - board.PlyCount) * 9 / 10 / 10;
 
-        return bestMove;
+        Console.WriteLine(timeToMove * (0.001));
+        Move currentBestMove;
+        int currentDepth = 1;
+        bestMove = Move.NullMove;
+
+        for (;;)
+        {
+            Search(currentDepth++, 0, -inf, inf);
+            currentBestMove = bestMove;
+            if (timer.MillisecondsElapsedThisTurn > timeToMove) break;
+        }
+        //{
+        //    Search(6, 0, -inf, inf);
+        //    currentBestMove = bestMove;
+        //}
+
+        //Console.WriteLine(bestMove.ToString());
+        //Console.WriteLine("Time: " + timer.MillisecondsElapsedThisTurn +
+        //                    " Cutoffs: " + cutoffs +
+        //                    " Positions: " + positionsEvaluated +
+        //                    " PositionsLookedUp " + positionsLookedUp +
+        //                    " Depth: " + currentDepth);
+
+
+        return currentBestMove;
     }
 
     public int Evaluate()
@@ -50,37 +125,31 @@ public class MyBot : IChessBot
         ++positionsEvaluated;
         int evaluation = 0;
 
-        var pieceLists = board.GetAllPieceLists();
-        foreach (PieceList list in pieceLists)
-            foreach (Piece piece in list) evaluation += (pieceValues[(int)piece.PieceType] * (piece.IsWhite ? 1 : -1));
-
-        //if (board.IsInCheck()) evaluation += board.IsWhiteToMove ? -50 : 50;
+        foreach (PieceList list in board.GetAllPieceLists())
+            foreach (Piece piece in list) evaluation += pieceValues[(int)piece.PieceType] * (piece.IsWhite ? 1 : -1);
 
         if (!board.IsWhiteToMove) evaluation = -evaluation;
         if (board.IsInCheck()) evaluation += -50;
+
         return evaluation;
     }
     public void OrderMoves(Move[] moves)
     {
-        int[] scores = new int[moves.Length];
+        Move probablyBestMove = TT.LookupMove();
+        int len = moves.Length;
 
-        for (int i = 0; i < moves.Length; ++i)
+        for (int i = 0; i < len; ++i)
         {
             scores[i] = 0;
             Move move = moves[i];
-            if (move.IsCapture)
-            {
-                 scores[i] += pieceValues[(int)move.CapturePieceType] * 10 - pieceValues[(int)move.MovePieceType];
-            }
-            else if (move.MovePieceType != PieceType.Pawn && board.SquareIsAttackedByOpponent(move.TargetSquare))
-            {
-                scores[i] -= 1000;
-            }
+            if (move.IsCapture) scores[i] += pieceValues[(int)move.CapturePieceType] * 10 - pieceValues[(int)move.MovePieceType];
+
+            if (move == probablyBestMove) scores[i] += 1000000;
         }
 
         // Sort
-        for (int j = 0; j < moves.Length; ++j)
-            for (int i = 1; i < moves.Length; ++i)
+        for (int j = 0; j < len; ++j)
+            for (int i = 1; i < len; ++i)
                 if (scores[i - 1] < scores[i])
                     (scores[i - 1], scores[i], moves[i - 1], moves[i]) = (scores[i], scores[i - 1], moves[i], moves[i - 1]);
                 //{
@@ -88,59 +157,58 @@ public class MyBot : IChessBot
                     //(moves[i - 1], moves[i]) = (moves[i], moves[i - 1]);
                 //}
     }
-    public Move Search(int depth)
+
+    public int Search(int depth, int ply, int alpha, int beta)
     {
-        positionsEvaluated = cutoffs = 0;
-
-        int bestScore = -inf;
-        Move bestMove = Move.NullMove;
-
-        Move[] moves = board.GetLegalMoves();
-
-
-        foreach (Move move in moves)
-        {
-            board.MakeMove(move);
-            int score = -Minimax(depth - 1, -inf, inf);
-            board.UndoMove(move);
-            if (score > bestScore)
-            {
-                bestScore = score;
-                bestMove = move;
-            }
-        }
-
-        return bestMove;
-    }
-
-    public int Minimax(int depth, int alpha, int beta)
-    {
+        if (timer.MillisecondsElapsedThisTurn > timeToMove) return 0;
         if (board.IsInCheckmate()) return -inf;
         if (board.IsDraw()) return -10;
 
-        if (depth <= 0) return QuiescenceSearch(board, alpha, beta);
+        int lookup;
 
+        if (useTranspositionTable && ply > 0 &&
+            (lookup = TT.Lookup(depth, alpha, beta)) != TranspositionTable.lookupFailed)
+        {
+            ++positionsLookedUp;
+            return lookup;
+        }
+
+        if (depth <= 0) return QuiescenceSearch(alpha, beta);
+
+        int type = Entry.Alpha;
         Move[] moves = board.GetLegalMoves();
+        Move currentBestMove = moves[0];
         OrderMoves(moves);
 
         foreach (Move move in moves)
         {
             board.MakeMove(move);
-            int eval = -Minimax(depth - 1, -beta, -alpha);
+            int eval = -Search(depth - 1, ply + 1, -beta, -alpha);
             board.UndoMove(move);
+            if (timer.MillisecondsElapsedThisTurn > timeToMove) return 0;
             if (eval >= beta)
             {
+                if (useTranspositionTable) TT.Store(depth, eval, move, Entry.Beta);
                 ++cutoffs;
                 return beta;
             }
-            if (eval > alpha) alpha = eval;
+            if (eval > alpha)
+            {
+                type = Entry.Exact;
+                currentBestMove = move;
+                alpha = eval;
+            }
         }
 
+        if (useTranspositionTable) TT.Store(depth, alpha, currentBestMove, type);
+
+        if (ply == 0) bestMove = currentBestMove;
         return alpha;
     }
 
-    public int QuiescenceSearch(Board board, int alpha, int beta)
+    public int QuiescenceSearch(int alpha, int beta)
     {
+        if (timer.MillisecondsElapsedThisTurn > timeToMove) return 0;
         if (board.IsInCheckmate()) return -inf;
         if (board.IsDraw()) return -10;
 
@@ -152,7 +220,7 @@ public class MyBot : IChessBot
         }
         if (eval > alpha) alpha = eval;
 
-        Move[] moves = board.GetLegalMoves(capturesOnly: true);
+        Move[] moves = board.GetLegalMoves(true);
         if (moves.Length == 0) return Evaluate();
 
         OrderMoves(moves);
@@ -160,7 +228,7 @@ public class MyBot : IChessBot
         foreach (Move move in moves)
         {
             board.MakeMove(move);
-            eval = -QuiescenceSearch(board, -beta, -alpha);
+            eval = -QuiescenceSearch(-beta, -alpha);
             board.UndoMove(move);
             if (eval >= beta)
             {
