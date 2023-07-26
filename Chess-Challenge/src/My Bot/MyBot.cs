@@ -26,10 +26,12 @@ public class MyBot : IChessBot
 
     public int
         inf = 1000000000,
-        timeToMove;
-    public bool useTranspositionTable = true;
+        timeToMove,
+        positionsEvaluated,
+        cutoffs,
+        positionsLookedUp;
 
-    public int positionsEvaluated, cutoffs, positionsLookedUp;
+    public bool useTranspositionTable = true;
 
     public Board board;
     public Timer timer;
@@ -79,7 +81,7 @@ public class MyBot : IChessBot
         37595777286111216795169226621m,
         34504506446325449338790638201m,
         32008055757151261616764186230m,
-        35099254967069289411849580138m,
+        35099254967069289411848728170m,
         29851365280217876910430191735m,
         43170062905136476261956150622m,
         40741520366248297589663502729m,
@@ -127,18 +129,6 @@ public class MyBot : IChessBot
 
         for (int i = 0; i < 768; ++i)
             pieceSquareTables[i] += pieceValues[i / 128 + 1];
-
-        //for (int i = 0; i < 12; ++i)
-        //{
-        //    for (int j = 0; j < 64; ++j)
-        //    {
-        //        if (j % 8 == 0) Console.WriteLine();
-        //        Console.Write(pieceSquareTables[i * 64 + j] + " ");
-        //    }
-        //    Console.WriteLine();
-        //    Console.WriteLine();
-        //    Console.WriteLine();
-        //}
     }
 
     public Move Think(Board board_param, Timer timer_param)
@@ -162,12 +152,12 @@ public class MyBot : IChessBot
         //}
         //Console.WriteLine(eval);
 
-        //Console.WriteLine("Time: " + timer.MillisecondsElapsedThisTurn +
-        //                    " " + bestMove.ToString() +
-        //                    " Cutoffs: " + cutoffs +
-        //                    " Positions: " + positionsEvaluated +
-        //                    " PositionsLookedUp " + positionsLookedUp +
-        //                    " Depth: " + (currentDepth - 1));
+        Console.WriteLine("Time: " + timer.MillisecondsElapsedThisTurn +
+                            " " + bestMove.ToString() +
+                            " Cutoffs: " + cutoffs +
+                            " Positions: " + positionsEvaluated +
+                            " PositionsLookedUp " + positionsLookedUp +
+                            " Depth: " + (currentDepth - 1));
 
         return bestMove;
     }
@@ -175,14 +165,21 @@ public class MyBot : IChessBot
     public int Evaluate()
     {
         ++positionsEvaluated;
-        int evaluation = 0;
+        int middleGame = 0, endgame = 0,
+            piecesNum = BitboardHelper.GetNumberOfSetBits(board.AllPiecesBitboard);
 
         //foreach (PieceList list in board.GetAllPieceLists())
         //    foreach (Piece piece in list) evaluation += pieceValues[(int)piece.PieceType] * (piece.IsWhite ? 1 : -1);
 
         // TODO: interpolation between midgame and endgame
         foreach (PieceList list in board.GetAllPieceLists())
-            foreach (Piece piece in list) evaluation += pieceSquareTables[((int)piece.PieceType - 1) * 2 * 64 + (piece.IsWhite ? piece.Square.Index : piece.Square.Index^56)] * (piece.IsWhite ? 1 : -1);
+            foreach (Piece piece in list)
+            {
+                middleGame += pieceSquareTables[((int)piece.PieceType - 1) * 2 * 64 + (piece.IsWhite ? piece.Square.Index : piece.Square.Index ^ 56)] * (piece.IsWhite ? 1 : -1);
+                endgame += pieceSquareTables[((int)piece.PieceType - 1) * 2 * 64 + (piece.IsWhite ? piece.Square.Index : piece.Square.Index ^ 56) + 64] * (piece.IsWhite ? 1 : -1);
+            }
+
+        int evaluation = (middleGame * piecesNum + endgame * (32 - piecesNum)) / 32;
 
         if (!board.IsWhiteToMove) evaluation = -evaluation;
 
@@ -213,6 +210,7 @@ public class MyBot : IChessBot
         if (endSearch || board.IsDraw()) return 0;
         if (board.IsInCheckmate()) return -10000000 - depth;
 
+        bool qsearch = depth <= 0;
         int lookup;
 
         if (useTranspositionTable && ply > 0 &&
@@ -222,11 +220,21 @@ public class MyBot : IChessBot
             return lookup;
         }
 
-        if (depth <= 0) return QuiescenceSearch(alpha, beta);
-
         int type = Alpha;
-        Move[] moves = board.GetLegalMoves();
+        Move[] moves = board.GetLegalMoves(qsearch);
         OrderMoves(moves);
+
+        if (qsearch)
+        {
+            int eval = Evaluate();
+            if (eval >= beta)
+            {
+                ++cutoffs;
+                return beta;
+            }
+            if (eval > alpha) alpha = eval;
+            if (moves.Length == 0) return eval;
+        }
 
         Move currentBestMove = moves[0];
 
@@ -255,40 +263,6 @@ public class MyBot : IChessBot
         if (ply == 0) bestMove = currentBestMove;
         return alpha;
     }
-
-    public int QuiescenceSearch(int alpha, int beta)
-    {
-        if (endSearch || board.IsDraw()) return 0;
-        if (board.IsInCheckmate()) return 9990000; // 10000000 - 10000
-
-        int eval = Evaluate();
-        if (eval >= beta)
-        {
-            ++cutoffs;
-            return beta;
-        }
-        if (eval > alpha) alpha = eval;
-
-        Move[] moves = board.GetLegalMoves(true);
-        if (moves.Length == 0) return eval;
-
-        OrderMoves(moves);
-
-        foreach (Move move in moves)
-        {
-            board.MakeMove(move);
-            eval = -QuiescenceSearch(-beta, -alpha);
-            board.UndoMove(move);
-            if (eval >= beta)
-            {
-                ++cutoffs;
-                return beta;
-            }
-            if (eval > alpha) alpha = eval;
-        }
-        return alpha;
-    }
-
 
     // Transposition Table
     public ulong Index {
