@@ -47,6 +47,10 @@ public class MyBot : IChessBot
 
     public ulong TTSize = 1_000_000;
     public Entry[] entries;
+    public ulong TTIndex
+    {
+        get => board.ZobristKey % TTSize;
+    }
 
     public decimal[] pieceSquareTablesCompressed = {
         32004456945391047372753631352m,
@@ -142,7 +146,7 @@ public class MyBot : IChessBot
         int currentDepth = 1;
         bestMove = board.GetLegalMoves()[0];
 
-        for (; !endSearch;) Search(currentDepth++, 0, -inf, inf);
+        for (; !endSearch;) Search(currentDepth++, true, -inf, inf);
 
         //int eval = 0;
         //for (; !endSearch;)
@@ -152,12 +156,12 @@ public class MyBot : IChessBot
         //}
         //Console.WriteLine(eval);
 
-        Console.WriteLine("Time: " + timer.MillisecondsElapsedThisTurn +
-                            " " + bestMove.ToString() +
-                            " Cutoffs: " + cutoffs +
-                            " Positions: " + positionsEvaluated +
-                            " PositionsLookedUp " + positionsLookedUp +
-                            " Depth: " + (currentDepth - 1));
+        //Console.WriteLine("Time: " + timer.MillisecondsElapsedThisTurn +
+        //                    " " + bestMove.ToString() +
+        //                    " Cutoffs: " + cutoffs +
+        //                    " Positions: " + positionsEvaluated +
+        //                    " PositionsLookedUp " + positionsLookedUp +
+        //                    " Depth: " + (currentDepth - 1));
 
         return bestMove;
     }
@@ -168,29 +172,44 @@ public class MyBot : IChessBot
         int middleGame = 0, endgame = 0,
             piecesNum = BitboardHelper.GetNumberOfSetBits(board.AllPiecesBitboard);
 
-        //foreach (PieceList list in board.GetAllPieceLists())
-        //    foreach (Piece piece in list) evaluation += pieceValues[(int)piece.PieceType] * (piece.IsWhite ? 1 : -1);
-
-        // TODO: interpolation between midgame and endgame
         foreach (PieceList list in board.GetAllPieceLists())
             foreach (Piece piece in list)
             {
-                middleGame += pieceSquareTables[((int)piece.PieceType - 1) * 2 * 64 + (piece.IsWhite ? piece.Square.Index : piece.Square.Index ^ 56)] * (piece.IsWhite ? 1 : -1);
-                endgame += pieceSquareTables[((int)piece.PieceType - 1) * 2 * 64 + (piece.IsWhite ? piece.Square.Index : piece.Square.Index ^ 56) + 64] * (piece.IsWhite ? 1 : -1);
+                int index = ((int)piece.PieceType - 1) * 128 + piece.Square.Index ^ (piece.IsWhite ? 0 : 56), perspective = (piece.IsWhite ? 1 : -1);
+                middleGame += pieceSquareTables[index] * perspective;
+                endgame += pieceSquareTables[index + 64] * perspective;
             }
 
-        int evaluation = (middleGame * piecesNum + endgame * (32 - piecesNum)) / 32;
-
-        if (!board.IsWhiteToMove) evaluation = -evaluation;
-
-        return evaluation;
+        return (middleGame * piecesNum + endgame * (32 - piecesNum)) / (board.IsWhiteToMove ? 32 : -32);
     }
-    public void OrderMoves(Move[] moves)
-    {
-        Move probablyBestMove = LookupMove();
-        int len = moves.Length;
 
-        for (int i = 0; i < len; ++i)
+    public int Search(int depth, bool isRoot, int alpha, int beta)
+    {
+        if (endSearch || board.IsDraw()) return 0;
+        if (board.IsInCheckmate()) return -10000000 - depth;
+
+        // Lookup value from transposition table
+        Entry entry = entries[TTIndex];
+        if (useTranspositionTable &&
+            !isRoot &&
+            entry != null &&
+            entry.key == board.ZobristKey &&
+            entry.depth >= depth && (
+            (entry.type == Exact) ||
+            (entry.type == Alpha && entry.value <= alpha) ||
+            (entry.type == Beta && entry.value >= beta)
+            ))
+        {
+            ++positionsLookedUp; 
+            return entry.value;
+        }
+
+        Move[] moves = board.GetLegalMoves(depth <= 0);
+
+        // Move ordering
+        Move? probablyBestMove = entries[TTIndex]?.move;
+
+        for (int i = 0; i < moves.Length; ++i)
         {
             scores[i] = 0;
             Move move = moves[i];
@@ -199,32 +218,12 @@ public class MyBot : IChessBot
             if (move == probablyBestMove) scores[i] += 1000000;
         }
 
-        // Sort. Lol
-        for (int i = 1; i < len; ++i)
+        for (int i = 1; i < moves.Length; ++i)
             if (scores[i - 1] < scores[i])
                 (i, scores[i - 1], scores[i], moves[i - 1], moves[i]) = (1, scores[i], scores[i - 1], moves[i], moves[i - 1]);
-    }
+        // Move ordering
 
-    public int Search(int depth, int ply, int alpha, int beta)
-    {
-        if (endSearch || board.IsDraw()) return 0;
-        if (board.IsInCheckmate()) return -10000000 - depth;
-
-        bool qsearch = depth <= 0;
-        int lookup;
-
-        if (useTranspositionTable && ply > 0 &&
-            (lookup = Lookup(depth, alpha, beta)) != lookupFailed)
-        {
-            ++positionsLookedUp;
-            return lookup;
-        }
-
-        int type = Alpha;
-        Move[] moves = board.GetLegalMoves(qsearch);
-        OrderMoves(moves);
-
-        if (qsearch)
+        if (depth <= 0)
         {
             int eval = Evaluate();
             if (eval >= beta)
@@ -237,16 +236,18 @@ public class MyBot : IChessBot
         }
 
         Move currentBestMove = moves[0];
+        int type = Alpha;
 
         foreach (Move move in moves)
         {
             board.MakeMove(move);
-            int eval = -Search(depth - 1, ply + 1, -beta, -alpha);
+            int eval = -Search(depth - 1, false, -beta, -alpha);
             board.UndoMove(move);
             if (endSearch) return 0;
             if (eval >= beta)
             {
-                if (useTranspositionTable) Store(depth, eval, move, Beta);
+                // Store position in Transposition Table
+                if (useTranspositionTable) entries[TTIndex] = new(board.ZobristKey, depth, eval, currentBestMove, Beta);
                 ++cutoffs;
                 return beta;
             }
@@ -258,39 +259,10 @@ public class MyBot : IChessBot
             }
         }
 
-        if (useTranspositionTable) Store(depth, alpha, currentBestMove, type);
+        // Store position in Transposition Table
+        if (useTranspositionTable) entries[TTIndex] = new(board.ZobristKey, depth, alpha, currentBestMove, type);
 
-        if (ply == 0) bestMove = currentBestMove;
+        if (isRoot) bestMove = currentBestMove;
         return alpha;
     }
-
-    // Transposition Table
-    public ulong Index {
-        get => board.ZobristKey % TTSize;
-    }
-
-    public void Store(int depth, int value, Move move, int type)
-    {
-        //if (entries[board.ZobristKey % size].depth >= depth) return;
-
-        entries[Index] = new(board.ZobristKey, depth, value, move, type);
-    }
-
-    public int Lookup(int depth, int alpha, int beta)
-    {
-        Entry entry = entries[Index];
-
-        if (entry == null ||
-            entry.key != board.ZobristKey ||
-            entry.depth < depth) return lookupFailed;
-
-        int type = entry.type, value = entry.value;
-        if ((type == Exact) ||
-            (type == Alpha && value <= alpha) ||
-            (type == Beta && value >= beta)) return value;
-
-        return lookupFailed;
-    }
-
-    public Move LookupMove() => entries[Index]?.move ?? Move.NullMove;
 }

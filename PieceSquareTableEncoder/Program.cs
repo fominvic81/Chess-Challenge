@@ -137,8 +137,10 @@ namespace Program
              10,  17,  23,  15,  20,  45,  44,  13,
             -12,  17,  14,  17,  17,  38,  23,  11,
             -74, -35, -18, -18, -11,  15,   4, -17,
-
         };
+
+        public static int[] MiddleGameValues = { 0, 82, 337, 365, 477, 1025, 0 };
+        public static int[] EndGameValues = { 0, 94, 281, 297, 512, 936, 0 };
 
 
         public static int[][] PieceSquareTables = new int[][] { 

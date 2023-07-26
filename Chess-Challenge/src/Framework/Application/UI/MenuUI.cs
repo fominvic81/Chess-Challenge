@@ -59,12 +59,6 @@ namespace ChessChallenge.Application
             // Window and quit buttons
             buttonPos.Y += breakSpacing;
 
-            string delayButtonName = controller.EnableMoveDelay ? "Disable Move Delay" : "Enable Move Delay";
-            if (NextButtonInRow(delayButtonName, ref buttonPos, spacing, buttonSize))
-            {
-                controller.EnableMoveDelay = !controller.EnableMoveDelay;
-            }
-
             bool isBigWindow = Raylib.GetScreenWidth() > Settings.ScreenSizeSmall.X;
             string windowButtonName = isBigWindow ? "Smaller Window" : "Bigger Window";
             if (NextButtonInRow(windowButtonName, ref buttonPos, spacing, buttonSize))
@@ -78,7 +72,7 @@ namespace ChessChallenge.Application
             if (NextButtonInRow("Fast forward", ref buttonPos, spacing, buttonSize))
             {
                 controller.fastForward = !controller.fastForward;
-                if(controller.fastForward) Settings.RunBotsOnSeparateThread = false;
+                if (controller.fastForward) Settings.RunBotsOnSeparateThread = false;
                 else Settings.RunBotsOnSeparateThread = true;
             }
 
