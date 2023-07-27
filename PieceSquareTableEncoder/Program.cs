@@ -139,22 +139,26 @@ namespace Program
             -74, -35, -18, -18, -11,  15,   4, -17,
         };
 
-        public static int[] MiddleGameValues = { 0, 82, 337, 365, 477, 1025, 0 };
-        public static int[] EndGameValues = { 0, 94, 281, 297, 512, 936, 0 };
+        public static int[] MiddleGameValues = new int[8] { 0, 82, 337, 365, 477, 1023, 0, 0 };
+        public static int[] EndGameValues =    new int[8] { 0, 94, 281, 297, 512,  936, 0, 0 };
+        public static int[][] PieceValues = {
+            MiddleGameValues,
+            EndGameValues,
+        };
 
 
-        public static int[][] PieceSquareTables = new int[][] { 
+        public static int[][] PieceSquareTables = { 
             MiddleGamePawn,
-            EndGamePawn,
             MiddleGameKnight,
-            EndGameKnight,
             MiddleGameBishop,
-            EndGameBishop,
             MiddleGameRook,
-            EndGameRook,
             MiddleGameQueen,
-            EndGameQueen,
             MiddleGameKing,
+            EndGamePawn,
+            EndGameKnight,
+            EndGameBishop,
+            EndGameRook,
+            EndGameQueen,
             EndGameKing,
         };
 
@@ -178,6 +182,40 @@ namespace Program
         public static void PrintDecimalList(decimal[] data)
         {
             Array.ForEach(data, x => Console.WriteLine("" + x + "m,"));
+        }
+
+        public static ulong[] CompressLong(byte[] data)
+        {
+            var result = new ulong[data.Length / 8];
+            for (int idx = 0; idx < result.Length; idx++)
+            {
+                result[idx] = BitConverter.ToUInt64(data, idx * 8);
+            }
+            return result;
+        }
+
+        public static void PrintLongList(ulong[] data)
+        {
+            Array.ForEach(data, x => Console.WriteLine("" + x + ","));
+        }
+
+        public static ulong[] CompressPVs()
+        {
+            byte[] bytes = new byte[MiddleGameValues.Length * 2];
+
+            for (int i = 0; i < MiddleGameValues.Length; ++i)
+            {
+                bytes[i] = (byte)(MiddleGameValues[i] / 4);
+                bytes[i + MiddleGameValues.Length] = (byte)(EndGameValues[i] / 4);
+            }
+
+            return CompressLong(bytes);
+        }
+
+        public static int[] DecompressPVs(ulong[] compressed)
+        {
+            int[] decompressed = compressed.SelectMany(BitConverter.GetBytes).Select(x => x * 4).ToArray();
+            return decompressed;
         }
 
         public static decimal[] CompressPSTs()
@@ -218,18 +256,6 @@ namespace Program
 
         static void Main()
         {
-            //int[] a = DecompressPSTs(CompressPSTs());
-            //for (int i = 0; i < 12; ++i)
-            //{
-            //    for (int j = 0; j < 64; ++j)
-            //    {
-            //        if (j % 8 == 0) Console.WriteLine();
-            //        Console.Write(a[i * 64 + j] + " ");
-            //    }
-            //    Console.WriteLine();
-            //    Console.WriteLine();
-            //    Console.WriteLine();
-            //}
             decimal[] compressed = CompressPSTs();
             int[] decompressed = DecompressPSTs(compressed);
             int[] original = PieceSquareTables.SelectMany((int[] x) => x).ToArray();
@@ -241,10 +267,20 @@ namespace Program
                 maxDiff = Math.Max(diff, maxDiff);
             }
 
+            ulong[] compressedPVs = CompressPVs();
+            int[] decompressedPVs = DecompressPVs(compressedPVs);
+
+            for (int i = 0; i < decompressedPVs.Length; ++i)
+            {
+                Console.Write(decompressedPVs[i] + " ");
+            }
+
             Console.WriteLine("Max difference: " + maxDiff);
 
 
             PrintDecimalList(compressed);
+            Console.WriteLine("##############");
+            PrintLongList(compressedPVs);
         }
 
     }
