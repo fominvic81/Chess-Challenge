@@ -185,8 +185,7 @@ public class MyBot : IChessBot
 
     public int Search(int depth, bool isRoot, int alpha, int beta)
     {
-        if (endSearch || board.IsDraw()) return 0;
-        if (board.IsInCheckmate()) return -10000000 - depth;
+        if (endSearch || board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100) return 0;
 
         // Lookup value from transposition table
         Entry entry = entries[TTIndex];
@@ -200,11 +199,29 @@ public class MyBot : IChessBot
             (entry.type == Beta && entry.value >= beta)
             ))
         {
-            ++positionsLookedUp; 
+            ++positionsLookedUp;
             return entry.value;
         }
 
         Move[] moves = board.GetLegalMoves(depth <= 0);
+
+        int eval = 0;
+        if (depth <= 0)
+        {
+            eval = Evaluate();
+            if (eval >= beta)
+            {
+                ++cutoffs;
+                return beta;
+            }
+            if (eval > alpha) alpha = eval;
+        }
+        if (moves.Length == 0)
+        {
+            if (board.IsInCheck()) return -10000000 - depth;
+            return eval;
+        }
+
 
         // Move ordering
         Move? probablyBestMove = entries[TTIndex]?.move;
@@ -223,25 +240,13 @@ public class MyBot : IChessBot
                 (i, scores[i - 1], scores[i], moves[i - 1], moves[i]) = (1, scores[i], scores[i - 1], moves[i], moves[i - 1]);
         // Move ordering
 
-        if (depth <= 0)
-        {
-            int eval = Evaluate();
-            if (eval >= beta)
-            {
-                ++cutoffs;
-                return beta;
-            }
-            if (eval > alpha) alpha = eval;
-            if (moves.Length == 0) return eval;
-        }
-
         Move currentBestMove = moves[0];
         int type = Alpha;
 
         foreach (Move move in moves)
         {
             board.MakeMove(move);
-            int eval = -Search(depth - 1, false, -beta, -alpha);
+            eval = -Search(depth - 1, false, -beta, -alpha);
             board.UndoMove(move);
             if (endSearch) return 0;
             if (eval >= beta)
