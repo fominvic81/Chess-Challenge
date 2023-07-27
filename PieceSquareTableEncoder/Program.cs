@@ -145,16 +145,16 @@ namespace Program
 
         public static int[][] PieceSquareTables = new int[][] { 
             MiddleGamePawn,
-            EndGamePawn,
             MiddleGameKnight,
-            EndGameKnight,
             MiddleGameBishop,
-            EndGameBishop,
             MiddleGameRook,
-            EndGameRook,
             MiddleGameQueen,
-            EndGameQueen,
             MiddleGameKing,
+            EndGamePawn,
+            EndGameKnight,
+            EndGameBishop,
+            EndGameRook,
+            EndGameQueen,
             EndGameKing,
         };
 
