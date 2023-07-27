@@ -148,10 +148,11 @@ public class MyBot : IChessBot
         board = board_param;
         timer = timer_param;
 
-        timeToMove = Math.Max(200, timer.MillisecondsRemaining - 2000) * 4 / 5 / Math.Max(20, 60 - board.PlyCount);
 
         int currentDepth = 1;
         bestMove = board.GetLegalMoves()[0];
+
+        timeToMove = Math.Max(200, timer.MillisecondsRemaining - 1000) * 4 / 5 / Math.Max(20, 60 - board.PlyCount);
 
         for (; !endSearch;) Search(currentDepth++, true, -inf, inf);
 
