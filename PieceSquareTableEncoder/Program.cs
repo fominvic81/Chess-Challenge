@@ -1,5 +1,5 @@
 ﻿using System;
-
+using System.Diagnostics.Metrics;
 
 namespace Program
 {
@@ -218,33 +218,22 @@ namespace Program
 
         static void Main()
         {
-            //int[] a = DecompressPSTs(CompressPSTs());
-            //for (int i = 0; i < 12; ++i)
+
+            //decimal[] compressed = CompressPSTs();
+            //int[] decompressed = DecompressPSTs(compressed);
+            //int[] original = PieceSquareTables.SelectMany((int[] x) => x).ToArray();
+
+            //int maxDiff = 0;
+            //for (int i = 0; i < original.Length; ++i)
             //{
-            //    for (int j = 0; j < 64; ++j)
-            //    {
-            //        if (j % 8 == 0) Console.WriteLine();
-            //        Console.Write(a[i * 64 + j] + " ");
-            //    }
-            //    Console.WriteLine();
-            //    Console.WriteLine();
-            //    Console.WriteLine();
+            //    int diff = Math.Abs(original[i] - decompressed[i]);
+            //    maxDiff = Math.Max(diff, maxDiff);
             //}
-            decimal[] compressed = CompressPSTs();
-            int[] decompressed = DecompressPSTs(compressed);
-            int[] original = PieceSquareTables.SelectMany((int[] x) => x).ToArray();
 
-            int maxDiff = 0;
-            for (int i = 0; i < original.Length; ++i)
-            {
-                int diff = Math.Abs(original[i] - decompressed[i]);
-                maxDiff = Math.Max(diff, maxDiff);
-            }
-
-            Console.WriteLine("Max difference: " + maxDiff);
+            //Console.WriteLine("Max difference: " + maxDiff);
 
 
-            PrintDecimalList(compressed);
+            //PrintDecimalList(compressed);
         }
 
     }

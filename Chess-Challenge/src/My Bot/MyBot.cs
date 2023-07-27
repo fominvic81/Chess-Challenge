@@ -21,7 +21,7 @@ public class MyBot : IChessBot
     public int[]
         // null, pawn, knight, bishop, rook, queen, king
         pieceValues = { 0, 100, 300, 320, 500, 900, 10000 },
-        scores = new int[200],
+        reverseScores = new int[200],
         pieceSquareTables;
 
     public int
@@ -45,8 +45,8 @@ public class MyBot : IChessBot
 
     static public int Exact = 0, Alpha = 1, Beta = 2, lookupFailed;
 
-    public ulong TTSize = 1_000_000;
-    public Entry[] entries;
+    static public ulong TTSize = 1_000_000;
+    static public Entry[] entries = new Entry[TTSize];
     public ulong TTIndex
     {
         get => board.ZobristKey % TTSize;
@@ -121,7 +121,6 @@ public class MyBot : IChessBot
 
     public MyBot()
     {
-        entries = new Entry[TTSize];
 
         //pieceSquareTables = pieceSquareTablesCompressed.SelectMany(decimal.GetBits).Where((x, i) => i % 4 != 3).SelectMany(BitConverter.GetBytes).Select(x => x * 375 / 255 - 167 - 9).ToArray();
         pieceSquareTables = pieceSquareTablesCompressed
@@ -133,6 +132,14 @@ public class MyBot : IChessBot
 
         for (int i = 0; i < 768; ++i)
             pieceSquareTables[i] += pieceValues[i / 64 % 6 + 1];
+
+        //// TT precomputing
+        //board = Board.CreateBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        //timer = new Timer(4 * 1000);
+        //timeToMove = 4 * 1000;
+        //int currentDepth = 1;
+        //for (; !endSearch;) Search(currentDepth++, true, -inf, inf);
+        //Console.WriteLine(currentDepth);
     }
 
     public Move Think(Board board_param, Timer timer_param)
@@ -147,6 +154,10 @@ public class MyBot : IChessBot
         bestMove = board.GetLegalMoves()[0];
 
         for (; !endSearch;) Search(currentDepth++, true, -inf, inf);
+
+        //timeToMove = 100000;
+        //for (; currentDepth <= 6;) Search(currentDepth++, true, -inf, inf);
+        //Console.WriteLine(timer.MillisecondsElapsedThisTurn);
 
         //int eval = 0;
         //for (; !endSearch;)
@@ -185,6 +196,7 @@ public class MyBot : IChessBot
 
     public int Search(int depth, bool isRoot, int alpha, int beta)
     {
+        // 50??
         if (endSearch || board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100) return 0;
 
         // Lookup value from transposition table
@@ -228,17 +240,14 @@ public class MyBot : IChessBot
 
         for (int i = 0; i < moves.Length; ++i)
         {
-            scores[i] = 0;
+            reverseScores[i] = 0;
             Move move = moves[i];
-            if (move.IsCapture) scores[i] += pieceValues[(int)move.CapturePieceType] * 10 - pieceValues[(int)move.MovePieceType];
-
-            if (move == probablyBestMove) scores[i] += 1000000;
+            if (move.IsCapture) reverseScores[i] -= pieceValues[(int)move.CapturePieceType] * 10 - pieceValues[(int)move.MovePieceType];
+            if ((BitboardHelper.GetPawnAttacks(move.TargetSquare, board.IsWhiteToMove) & board.GetPieceBitboard(PieceType.Pawn, !board.IsWhiteToMove)) != 0) reverseScores[i] += 100;
+            if (move == probablyBestMove) reverseScores[i] -= 1000000;
         }
 
-        for (int i = 1; i < moves.Length; ++i)
-            if (scores[i - 1] < scores[i])
-                (i, scores[i - 1], scores[i], moves[i - 1], moves[i]) = (1, scores[i], scores[i - 1], moves[i], moves[i - 1]);
-        // Move ordering
+        Array.Sort(reverseScores, moves, 0, moves.Length);
 
         Move currentBestMove = moves[0];
         int type = Alpha;
