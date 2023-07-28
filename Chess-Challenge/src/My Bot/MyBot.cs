@@ -159,7 +159,7 @@ public class MyBot : IChessBot
 
         timeToMove = Math.Max(150, timer.MillisecondsRemaining - 1000) * 4 / 5 / Math.Max(20, 60 - board.PlyCount);
 
-        for (; !endSearch;) Search(currentDepth++, true, -inf, inf);
+        for (; !endSearch;) Search(currentDepth, currentDepth++, true, -inf, inf);
 
         //timeToMove = 100000;
         //for (; currentDepth <= 6;) Search(currentDepth++, true, -inf, inf);
@@ -205,7 +205,7 @@ public class MyBot : IChessBot
         return (middleGame * piecesNum + endgame * (32 - piecesNum)) / (board.IsWhiteToMove ? 32 : -32);
     }
 
-    public int Search(int depth, bool isRoot, int alpha, int beta)
+    public int Search(int depth, int plyRemaining, bool isRoot, int alpha, int beta)
     {
         // 50??
         if (endSearch || board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100) return 0;
@@ -226,10 +226,10 @@ public class MyBot : IChessBot
                 return entry.value;
 #endif
 
-        Move[] moves = board.GetLegalMoves(depth <= 0);
+        Move[] moves = board.GetLegalMoves(plyRemaining <= 0);
 
         int eval = 0;
-        if (depth <= 0)
+        if (plyRemaining <= 0)
         {
             eval = Evaluate();
             if (eval >= beta)
@@ -264,7 +264,7 @@ public class MyBot : IChessBot
         foreach (Move move in moves)
         {
             board.MakeMove(move);
-            eval = -Search(depth - 1, false, -beta, -alpha);
+            eval = -Search(depth - 1, plyRemaining - 1 + (board.IsInCheck() ? 1 : 0), false, -beta, -alpha);
             board.UndoMove(move);
             if (endSearch) return 0;
             if (eval >= beta)

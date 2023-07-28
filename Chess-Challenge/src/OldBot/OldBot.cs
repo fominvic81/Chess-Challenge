@@ -29,12 +29,14 @@ namespace ChessChallenge.Example
 
         public int
             inf = 1000000000,
-            timeToMove,
-            positionsEvaluated,
-            cutoffs,
-            positionsLookedUp;
+            timeToMove;
 
-        public bool useTranspositionTable = true;
+#if Stats
+    public int
+        positionsEvaluated,
+        cutoffs,
+        positionsLookedUp;
+#endif
 
         public Board board;
         public Timer timer;
@@ -147,14 +149,17 @@ namespace ChessChallenge.Example
 
         public Move Think(Board board_param, Timer timer_param)
         {
-            positionsEvaluated = cutoffs = positionsLookedUp = 0;
+#if Stats
+        positionsEvaluated = cutoffs = positionsLookedUp = 0;
+#endif
             board = board_param;
             timer = timer_param;
 
-            timeToMove = Math.Max(150, timer.MillisecondsRemaining - 1000) * 4 / 5 / Math.Max(20, 60 - board.PlyCount);
 
             int currentDepth = 1;
             bestMove = board.GetLegalMoves()[0];
+
+            timeToMove = Math.Max(150, timer.MillisecondsRemaining - 1000) * 4 / 5 / Math.Max(20, 60 - board.PlyCount);
 
             for (; !endSearch;) Search(currentDepth++, true, -inf, inf);
 
@@ -170,19 +175,24 @@ namespace ChessChallenge.Example
             //}
             //Console.WriteLine(eval);
 
-            //Console.WriteLine("Time: " + timer.MillisecondsElapsedThisTurn +
-            //                    " " + bestMove.ToString() +
-            //                    " Cutoffs: " + cutoffs +
-            //                    " Positions: " + positionsEvaluated +
-            //                    " PositionsLookedUp " + positionsLookedUp +
-            //                    " Depth: " + (currentDepth - 1));
+#if Stats
+        Console.WriteLine("Time: " + timer.MillisecondsElapsedThisTurn +
+                            " " + bestMove.ToString() +
+                            " Cutoffs: " + cutoffs +
+                            " Positions: " + positionsEvaluated +
+                            " PositionsLookedUp " + positionsLookedUp +
+                            " Depth: " + (currentDepth - 1));
+#endif
 
             return bestMove;
         }
 
         public int Evaluate()
         {
-            ++positionsEvaluated;
+#if Stats
+        ++positionsEvaluated;
+#endif
+
             int middleGame = 0, endgame = 0,
                 piecesNum = BitboardHelper.GetNumberOfSetBits(board.AllPiecesBitboard);
 
@@ -204,8 +214,7 @@ namespace ChessChallenge.Example
 
             // Lookup value from transposition table
             Entry entry = entries[TTIndex];
-            if (useTranspositionTable &&
-                !isRoot &&
+            if (!isRoot &&
                 entry != null &&
                 entry.key == board.ZobristKey &&
                 entry.depth >= depth && (
@@ -213,10 +222,11 @@ namespace ChessChallenge.Example
                 (entry.type == Alpha && entry.value <= alpha) ||
                 (entry.type == Beta && entry.value >= beta)
                 ))
-            {
-                ++positionsLookedUp;
+#if Stats
+            { ++positionsLookedUp; return entry.value; }
+#else
                 return entry.value;
-            }
+#endif
 
             Move[] moves = board.GetLegalMoves(depth <= 0);
 
@@ -225,17 +235,15 @@ namespace ChessChallenge.Example
             {
                 eval = Evaluate();
                 if (eval >= beta)
-                {
-                    ++cutoffs;
+#if Stats
+            { ++cutoffs; return beta; }
+#else
                     return beta;
-                }
+#endif
                 if (eval > alpha) alpha = eval;
             }
-            if (moves.Length == 0)
-            {
-                if (board.IsInCheck()) return -10000000 - depth;
-                return eval;
-            }
+
+            if (moves.Length == 0) return board.IsInCheck() ? -10000000 - depth : eval;
 
 
             // Move ordering
@@ -264,8 +272,10 @@ namespace ChessChallenge.Example
                 if (eval >= beta)
                 {
                     // Store position in Transposition Table
-                    if (useTranspositionTable) entries[TTIndex] = new(board.ZobristKey, depth, eval, currentBestMove, Beta);
-                    ++cutoffs;
+                    entries[TTIndex] = new(board.ZobristKey, depth, eval, currentBestMove, Beta);
+#if Stats
+                ++cutoffs;
+#endif
                     return beta;
                 }
                 if (eval > alpha)
@@ -277,7 +287,7 @@ namespace ChessChallenge.Example
             }
 
             // Store position in Transposition Table
-            if (useTranspositionTable) entries[TTIndex] = new(board.ZobristKey, depth, alpha, currentBestMove, type);
+            entries[TTIndex] = new(board.ZobristKey, depth, alpha, currentBestMove, type);
 
             if (isRoot) bestMove = currentBestMove;
             return alpha;
