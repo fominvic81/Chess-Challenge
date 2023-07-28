@@ -1,4 +1,5 @@
-﻿using ChessChallenge.API;
+﻿//#define Stats
+using ChessChallenge.API;
 using System;
 using System.Linq;
 
@@ -26,12 +27,14 @@ public class MyBot : IChessBot
 
     public int
         inf = 1000000000,
-        timeToMove,
+        timeToMove;
+
+#if Stats
+    public int
         positionsEvaluated,
         cutoffs,
         positionsLookedUp;
-
-    public bool useTranspositionTable = true;
+#endif
 
     public Board board;
     public Timer timer;
@@ -144,7 +147,9 @@ public class MyBot : IChessBot
 
     public Move Think(Board board_param, Timer timer_param)
     {
+#if Stats
         positionsEvaluated = cutoffs = positionsLookedUp = 0;
+#endif
         board = board_param;
         timer = timer_param;
 
@@ -168,19 +173,24 @@ public class MyBot : IChessBot
         //}
         //Console.WriteLine(eval);
 
-        //Console.WriteLine("Time: " + timer.MillisecondsElapsedThisTurn +
-        //                    " " + bestMove.ToString() +
-        //                    " Cutoffs: " + cutoffs +
-        //                    " Positions: " + positionsEvaluated +
-        //                    " PositionsLookedUp " + positionsLookedUp +
-        //                    " Depth: " + (currentDepth - 1));
+#if Stats
+        Console.WriteLine("Time: " + timer.MillisecondsElapsedThisTurn +
+                            " " + bestMove.ToString() +
+                            " Cutoffs: " + cutoffs +
+                            " Positions: " + positionsEvaluated +
+                            " PositionsLookedUp " + positionsLookedUp +
+                            " Depth: " + (currentDepth - 1));
+#endif
 
         return bestMove;
     }
 
     public int Evaluate()
     {
+#if Stats
         ++positionsEvaluated;
+#endif
+
         int middleGame = 0, endgame = 0,
             piecesNum = BitboardHelper.GetNumberOfSetBits(board.AllPiecesBitboard);
 
@@ -202,8 +212,7 @@ public class MyBot : IChessBot
 
         // Lookup value from transposition table
         Entry entry = entries[TTIndex];
-        if (useTranspositionTable &&
-            !isRoot &&
+        if (!isRoot &&
             entry != null &&
             entry.key == board.ZobristKey &&
             entry.depth >= depth && (
@@ -211,10 +220,11 @@ public class MyBot : IChessBot
             (entry.type == Alpha && entry.value <= alpha) ||
             (entry.type == Beta && entry.value >= beta)
             ))
-        {
-            ++positionsLookedUp;
-            return entry.value;
-        }
+#if Stats
+            { ++positionsLookedUp; return entry.value; }
+#else
+                return entry.value;
+#endif
 
         Move[] moves = board.GetLegalMoves(depth <= 0);
 
@@ -223,21 +233,19 @@ public class MyBot : IChessBot
         {
             eval = Evaluate();
             if (eval >= beta)
-            {
-                ++cutoffs;
+#if Stats
+            { ++cutoffs; return beta; }
+#else
                 return beta;
-            }
+#endif
             if (eval > alpha) alpha = eval;
         }
-        if (moves.Length == 0)
-        {
-            if (board.IsInCheck()) return -10000000 - depth;
-            return eval;
-        }
+
+        if (moves.Length == 0) return board.IsInCheck() ? -10000000 - depth : eval;
 
 
         // Move ordering
-        Move? probablyBestMove = entries[TTIndex]?.move;
+        Move ? probablyBestMove = entries[TTIndex]?.move;
 
         for (int i = 0; i < moves.Length; ++i)
         {
@@ -262,8 +270,10 @@ public class MyBot : IChessBot
             if (eval >= beta)
             {
                 // Store position in Transposition Table
-                if (useTranspositionTable) entries[TTIndex] = new(board.ZobristKey, depth, eval, currentBestMove, Beta);
+                entries[TTIndex] = new(board.ZobristKey, depth, eval, currentBestMove, Beta);
+#if Stats
                 ++cutoffs;
+#endif
                 return beta;
             }
             if (eval > alpha)
@@ -275,7 +285,7 @@ public class MyBot : IChessBot
         }
 
         // Store position in Transposition Table
-        if (useTranspositionTable) entries[TTIndex] = new(board.ZobristKey, depth, alpha, currentBestMove, type);
+        entries[TTIndex] = new(board.ZobristKey, depth, alpha, currentBestMove, type);
 
         if (isRoot) bestMove = currentBestMove;
         return alpha;
