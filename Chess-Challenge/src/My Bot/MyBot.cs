@@ -161,14 +161,16 @@ public class MyBot : IChessBot
 
         for (; !endSearch;) Search(currentDepth, currentDepth++, true, -inf, inf);
 
+        //Search(0, 0, true, -inf, inf);
+
         //timeToMove = 100000;
-        //for (; currentDepth <= 6;) Search(currentDepth++, true, -inf, inf);
+        //for (; currentDepth <= 6;) Search(currentDepth, currentDepth++, true, -inf, inf);
         //Console.WriteLine(timer.MillisecondsElapsedThisTurn);
 
         //int eval = 0;
         //for (; !endSearch;)
         //{
-        //    int currendEval = Search(currentDepth++, 0, -inf, inf);
+        //    int currendEval = Search(currentDepth, currentDepth++, true, -inf, inf);
         //    if (!endSearch) eval = currendEval;
         //}
         //Console.WriteLine(eval);
@@ -215,7 +217,7 @@ public class MyBot : IChessBot
         if (!isRoot &&
             entry != null &&
             entry.key == board.ZobristKey &&
-            entry.depth >= depth && (
+            entry.depth >= plyRemaining && (
             (entry.type == Exact) ||
             (entry.type == Alpha && entry.value <= alpha) ||
             (entry.type == Beta && entry.value >= beta)
@@ -228,10 +230,11 @@ public class MyBot : IChessBot
 
         Move[] moves = board.GetLegalMoves(plyRemaining <= 0);
 
-        int eval = 0;
+        int eval;
         if (plyRemaining <= 0)
         {
             eval = Evaluate();
+            if (moves.Length == 0) return eval;
             if (eval >= beta)
 #if Stats
             { ++cutoffs; return beta; }
@@ -241,11 +244,11 @@ public class MyBot : IChessBot
             if (eval > alpha) alpha = eval;
         }
 
-        if (moves.Length == 0) return board.IsInCheck() ? -10000000 - depth : eval;
+        if (moves.Length == 0) return board.IsInCheck() ? -10000000 - depth : 0;
 
 
         // Move ordering
-        Move ? probablyBestMove = entries[TTIndex]?.move;
+        Move? probablyBestMove = entries[TTIndex]?.move;
 
         for (int i = 0; i < moves.Length; ++i)
         {
@@ -270,7 +273,7 @@ public class MyBot : IChessBot
             if (eval >= beta)
             {
                 // Store position in Transposition Table
-                entries[TTIndex] = new(board.ZobristKey, depth, eval, currentBestMove, Beta);
+                entries[TTIndex] = new(board.ZobristKey, plyRemaining, eval, currentBestMove, Beta);
 #if Stats
                 ++cutoffs;
 #endif
@@ -285,7 +288,7 @@ public class MyBot : IChessBot
         }
 
         // Store position in Transposition Table
-        entries[TTIndex] = new(board.ZobristKey, depth, alpha, currentBestMove, type);
+        entries[TTIndex] = new(board.ZobristKey, plyRemaining, alpha, currentBestMove, type);
 
         if (isRoot) bestMove = currentBestMove;
         return alpha;
