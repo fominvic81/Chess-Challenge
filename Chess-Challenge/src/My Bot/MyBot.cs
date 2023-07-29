@@ -41,19 +41,13 @@ public class MyBot : IChessBot
 
     public Move bestMove;
 
-    public bool endSearch
-    {
-        get => timer.MillisecondsElapsedThisTurn > timeToMove;
-    }
+    public bool endSearch => timer.MillisecondsElapsedThisTurn > timeToMove;
 
     static public int Exact = 0, Alpha = 1, Beta = 2, lookupFailed;
 
     static public ulong TTSize = 1_000_000;
     static public Entry[] entries = new Entry[TTSize];
-    public ulong TTIndex
-    {
-        get => board.ZobristKey % TTSize;
-    }
+    public ulong TTIndex => board.ZobristKey % TTSize;
 
     public decimal[] pieceSquareTablesCompressed = {
         32004456945391047372753631352m,
@@ -125,10 +119,8 @@ public class MyBot : IChessBot
     public MyBot()
     {
 
-        //pieceSquareTables = pieceSquareTablesCompressed.SelectMany(decimal.GetBits).Where((x, i) => i % 4 != 3).SelectMany(BitConverter.GetBytes).Select(x => x * 375 / 255 - 167 - 9).ToArray();
         pieceSquareTables = pieceSquareTablesCompressed
-            .SelectMany(decimal.GetBits)
-            .Where((x, i) => i % 4 != 3)
+            .SelectMany(x => decimal.GetBits(x).Take(3))
             .SelectMany(BitConverter.GetBytes)
             .Select(x => x * 375 / 255 - 176)
             .ToArray();
