@@ -27,6 +27,7 @@ namespace ChessChallenge.Application
         // Other
         public readonly BoardUI boardUI;
         readonly int tokenCount;
+        readonly int debugTokenCount;
         readonly StringBuilder pgns;
         public bool fastForward;
 
@@ -43,7 +44,7 @@ namespace ChessChallenge.Application
         public ChallengeController()
         {
             Log($"Launching Chess-Challenge version {Settings.Version}");
-            tokenCount = GetTokenCount();
+            (tokenCount, debugTokenCount) = GetTokenCount();
             Warmer.Warm();
 
             boardUI = new BoardUI();
@@ -193,7 +194,7 @@ namespace ChessChallenge.Application
             }
         }
 
-        static int GetTokenCount()
+        static (int totalTokenCount, int debugTokenCount) GetTokenCount()
         {
             string path = Path.Combine(Directory.GetCurrentDirectory(), "src", "My Bot", "MyBot.cs");
 
@@ -201,7 +202,6 @@ namespace ChessChallenge.Application
             string txt = reader.ReadToEnd();
             return TokenCounter.CountTokens(txt);
         }
-
 
         void UpdateBotMatchStats(GameResult result, bool botAPlaysWhite)
         {
@@ -242,9 +242,10 @@ namespace ChessChallenge.Application
             string nameB = GetPlayerName(currentThread.PlayerBlack);
             boardUI.DrawPlayerNames(nameW, nameB, currentThread.PlayerWhite.TimeRemainingMs, currentThread.PlayerBlack.TimeRemainingMs, currentThread.isPlaying);
         }
+
         public void DrawOverlay()
         {
-            BotBrainCapacityUI.Draw(tokenCount, MaxTokenCount);
+            BotBrainCapacityUI.Draw(tokenCount, debugTokenCount, MaxTokenCount);
             MenuUI.DrawButtons(this);
             MatchStatsUI.DrawMatchStats(this);
         }
