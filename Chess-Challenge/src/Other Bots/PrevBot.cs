@@ -19,7 +19,7 @@ namespace ChessChallenge.Example
         }
     }
 
-    public class OldBot : IChessBot
+    public class PrevBot : IChessBot
     {
         public int[]
             // null, pawn, knight, bishop, rook, queen, king
@@ -124,7 +124,7 @@ namespace ChessChallenge.Example
             33573699640302844113553232772m,
         };
 
-        public OldBot()
+        public PrevBot()
         {
 
             //pieceSquareTables = pieceSquareTablesCompressed.SelectMany(decimal.GetBits).Where((x, i) => i % 4 != 3).SelectMany(BitConverter.GetBytes).Select(x => x * 375 / 255 - 167 - 9).ToArray();

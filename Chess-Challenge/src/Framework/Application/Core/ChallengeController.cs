@@ -14,7 +14,8 @@ namespace ChessChallenge.Application
             Human,
             MyBot,
             EvilBot,
-            OldBot,
+            PrevBot,
+            NegamaxV1,
         }
 
         // Bot match state

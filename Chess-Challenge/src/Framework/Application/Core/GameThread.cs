@@ -250,7 +250,8 @@ namespace ChessChallenge.Application
             return type switch {
                 PlayerType.MyBot => new ChessPlayer(new MyBot(), type, GameDurationMilliseconds),
                 PlayerType.EvilBot => new ChessPlayer(new EvilBot(), type, GameDurationMilliseconds),
-                PlayerType.OldBot => new ChessPlayer(new OldBot(), type, GameDurationMilliseconds),
+                PlayerType.PrevBot => new ChessPlayer(new PrevBot(), type, GameDurationMilliseconds),
+                PlayerType.NegamaxV1 => new ChessPlayer(new NegamaxV1(), type, GameDurationMilliseconds),
                 _ => new ChessPlayer(new HumanPlayer(controller.boardUI), type)
             };
         }
