@@ -45,8 +45,9 @@ public class MyBot : IChessBot
 
     static public int Exact = 0, Alpha = 1, Beta = 2, lookupFailed;
 
-    static public ulong TTSize = 1_000_000;
-    static public Entry[] entries = new Entry[TTSize];
+    // Better to use static fields when multithreading is off
+    public ulong TTSize = 1_000_000;
+    public Entry[] entries;
     public ulong TTIndex => board.ZobristKey % TTSize;
 
     public decimal[] pieceSquareTablesCompressed = {
@@ -118,7 +119,7 @@ public class MyBot : IChessBot
 
     public MyBot()
     {
-
+        entries = new Entry[TTSize];
         pieceSquareTables = pieceSquareTablesCompressed
             .SelectMany(x => decimal.GetBits(x).Take(3))
             .SelectMany(BitConverter.GetBytes)
@@ -127,14 +128,6 @@ public class MyBot : IChessBot
 
         for (int i = 0; i < 768; ++i)
             pieceSquareTables[i] += pieceValues[i / 64 % 6 + 1];
-
-        //// TT precomputing
-        //board = Board.CreateBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        //timer = new Timer(4 * 1000);
-        //timeToMove = 4 * 1000;
-        //int currentDepth = 1;
-        //for (; !endSearch;) Search(currentDepth++, true, -inf, inf);
-        //Console.WriteLine(currentDepth);
     }
 
     public Move Think(Board board_param, Timer timer_param)
@@ -151,7 +144,7 @@ public class MyBot : IChessBot
 
         timeToMove = Math.Max(150, timer.MillisecondsRemaining - 1000) * 4 / 5 / Math.Max(20, 60 - board.PlyCount);
 
-        for (; !endSearch;) Search(currentDepth, currentDepth++, true, -inf, inf);
+        for (; !endSearch;) Search(0, currentDepth++, true, -inf, inf);
 
         //Search(0, 0, true, -inf, inf);
 
@@ -198,8 +191,7 @@ public class MyBot : IChessBot
 
         return (middleGame * piecesNum + endgame * (32 - piecesNum)) / (board.IsWhiteToMove ? 32 : -32);
     }
-
-    public int Search(int depth, int plyRemaining, bool isRoot, int alpha, int beta)
+    public int Search(int plyFromRoot, int plyRemaining, bool isRoot, int alpha, int beta)
     {
         // 50??
         if (endSearch || board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100) return 0;
@@ -236,7 +228,7 @@ public class MyBot : IChessBot
             if (eval > alpha) alpha = eval;
         }
 
-        if (moves.Length == 0) return board.IsInCheck() ? -10000000 - depth : 0;
+        if (moves.Length == 0) return board.IsInCheck() ? -10000000 + plyFromRoot : 0;
 
 
         // Move ordering
@@ -259,7 +251,7 @@ public class MyBot : IChessBot
         foreach (Move move in moves)
         {
             board.MakeMove(move);
-            eval = -Search(depth - 1, plyRemaining - 1 + (board.IsInCheck() ? 1 : 0), false, -beta, -alpha);
+            eval = -Search(plyFromRoot + 1, plyRemaining - 1 + (board.IsInCheck() ? 1 : 0), false, -beta, -alpha);
             board.UndoMove(move);
             if (endSearch) return 0;
             if (eval >= beta)

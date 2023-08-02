@@ -30,7 +30,7 @@ namespace ChessChallenge.Application
         readonly int tokenCount;
         readonly int debugTokenCount;
         readonly StringBuilder pgns;
-        public bool fastForward;
+        public bool fastForward = true;
 
         public int totalMovesPlayed = 0;
         public int totalGamesPlayed = 0;
@@ -50,7 +50,6 @@ namespace ChessChallenge.Application
 
             boardUI = new BoardUI();
             pgns = new();
-            fastForward = false;
 
             BotStatsA = new BotMatchStats("IBot");
             BotStatsB = new BotMatchStats("IBot");
