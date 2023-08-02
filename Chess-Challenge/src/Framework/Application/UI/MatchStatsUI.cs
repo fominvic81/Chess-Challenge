@@ -9,7 +9,7 @@ namespace ChessChallenge.Application
     {
         public static void DrawMatchStats(ChallengeController controller)
         {
-            if (controller.PlayerWhite.IsBot && controller.PlayerBlack.IsBot)
+            if (controller.currentThread.PlayerWhite.IsBot && controller.currentThread.PlayerBlack.IsBot)
             {
                 int nameFontSize = UIHelper.ScaleInt(40);
                 int regularFontSize = UIHelper.ScaleInt(35);
@@ -21,7 +21,7 @@ namespace ChessChallenge.Application
                 Vector2 startPos = UIHelper.Scale(new Vector2(1500, 150));
                 float spacingY = UIHelper.Scale(35);
 
-                DrawNextText($"Game {controller.CurrGameNumber} of {controller.TotalGameCount}", headerFontSize, Color.WHITE);
+                DrawNextText($"Game {controller.gamesPlayedThisMatch} of {controller.TotalGameCount}", headerFontSize, Color.WHITE);
                 startPos.Y += spacingY * 2;
 
                 DrawStats(controller.BotStatsA);
@@ -42,11 +42,11 @@ namespace ChessChallenge.Application
                     DrawNextText($"Score: +{stats.NumWins} ={stats.NumDraws} -{stats.NumLosses}", regularFontSize, white);
                     DrawNextText($"Num Timeouts: {stats.NumTimeouts}", regularFontSize, col);
                     DrawNextText($"Num Illegal Moves: {stats.NumIllegalMoves}", regularFontSize, col);
-                    DrawNextText($"Winrate: {(float)stats.NumWins / (controller.CurrGameNumber - 1) * 100}%", regularFontSize, green);
-                    DrawNextText($"Draw rate: {(float)stats.NumDraws / (controller.CurrGameNumber - 1) * 100}%", regularFontSize, white);
-                    DrawNextText($"Loss rate: {(float)stats.NumLosses / (controller.CurrGameNumber - 1) * 100}%", regularFontSize, red);
+                    DrawNextText($"Winrate: {(float)stats.NumWins / controller.gamesPlayedThisMatch * 100}%", regularFontSize, green);
+                    DrawNextText($"Draw rate: {(float)stats.NumDraws / controller.gamesPlayedThisMatch * 100}%", regularFontSize, white);
+                    DrawNextText($"Loss rate: {(float)stats.NumLosses / controller.gamesPlayedThisMatch * 100}%", regularFontSize, red);
                 }
-                DrawNextText($"Average moves per game: {controller.trueTotalMovesPlayed / controller.CurrGameNumber - 1}", regularFontSize, white);
+                DrawNextText($"Average moves per game: {controller.totalMovesPlayed / Math.Max(1, controller.totalGamesPlayed)}", regularFontSize, white);
 
 
                 void DrawNextText(string text, int fontSize, Color col)

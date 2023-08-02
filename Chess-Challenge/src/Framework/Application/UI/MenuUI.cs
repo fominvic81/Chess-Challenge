@@ -9,8 +9,9 @@ namespace ChessChallenge.Application
     {
         public static void DrawButtons(ChallengeController controller)
         {
+
             Vector2 buttonPos = UIHelper.Scale(new Vector2(150, 210));
-            Vector2 buttonSize = UIHelper.Scale(new Vector2(260, 55));
+            Vector2 buttonSize = UIHelper.Scale(new Vector2(200, 55));
             float spacing = buttonSize.Y * 1.2f;
             float breakSpacing = spacing * 0.6f;
 
@@ -19,15 +20,15 @@ namespace ChessChallenge.Application
             {
                 var whiteType = controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.MyBot : ChallengeController.PlayerType.Human;
                 var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.MyBot : ChallengeController.PlayerType.Human;
-                controller.StartNewGame(whiteType, blackType);
+                controller.StartNewMatch(whiteType, blackType);
             }
             if (NextButtonInRow("MyBot vs MyBot", ref buttonPos, spacing, buttonSize))
             {
-                controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.MyBot);
+                controller.StartNewMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.MyBot);
             }
             if (NextButtonInRow("MyBot vs EvilBot", ref buttonPos, spacing, buttonSize))
             {
-                controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.EvilBot);
+                controller.StartNewMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.EvilBot);
             }
 
             // Page buttons
@@ -72,11 +73,14 @@ namespace ChessChallenge.Application
             if (NextButtonInRow("Fast forward", ref buttonPos, spacing, buttonSize))
             {
                 controller.fastForward = !controller.fastForward;
-                if (controller.fastForward) Settings.RunBotsOnSeparateThread = false;
-                else Settings.RunBotsOnSeparateThread = true;
             }
 
-            buttonPos = UIHelper.Scale(new Vector2(405, 210)); buttonSize = UIHelper.Scale(new Vector2(200, 55)); if (NextButtonInRow("MyBot vs OldBot", ref buttonPos, spacing, buttonSize)) { controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.OldBot); }
+            buttonPos = UIHelper.Scale(new Vector2(405, 210));
+            buttonSize = UIHelper.Scale(new Vector2(200, 55));
+            if (NextButtonInRow("MyBot vs OldBot", ref buttonPos, spacing, buttonSize))
+            {
+                controller.StartNewMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.OldBot);
+            }
 
             bool NextButtonInRow(string name, ref Vector2 pos, float spacingY, Vector2 size)
             {

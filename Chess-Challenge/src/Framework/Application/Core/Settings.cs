@@ -9,7 +9,7 @@ namespace ChessChallenge.Application
         // Game settings
         public const int GameDurationMilliseconds = 2 * 1000;
         public const float MinMoveDelay = 0;
-        public static bool RunBotsOnSeparateThread = true; // IF NOT IN FAST FORWARD, TURN THIS ON - It's no longer readonly
+        public static int NumThreads = 8; // Set it to one if you use static variables for storing bot data(lookup tables and etc)
 
         // Display settings
         public const bool DisplayBoardCoordinates = true;
