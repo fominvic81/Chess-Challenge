@@ -1,4 +1,4 @@
-﻿//#define Stats
+﻿#define Stats
 using ChessChallenge.API;
 using System;
 using System.Linq;
@@ -138,15 +138,15 @@ public class MyBot : IChessBot
         timer = timer_param;
 
 
-        int currentDepth = 1;
+        int currentDepth = 0;
         bestMove = board.GetLegalMoves()[0];
 
         timeToMove = Math.Max(150, timer.MillisecondsRemaining - 1000) * 4 / 5 / Math.Max(20, 60 - board.PlyCount);
 
-        for (; !endSearch;) Search(0, currentDepth++, -inf, inf);
+        for (; !endSearch;) Search(0, ++currentDepth, -inf, inf);
 
         //timeToMove = 100000;
-        //for (; currentDepth <= 6;) Search(0, currentDepth++, -inf, inf);
+        //for (; currentDepth <= 6;) Search(0, ++currentDepth, -inf, inf);
         //Console.WriteLine(timer.MillisecondsElapsedThisTurn);
 
 #if Stats
@@ -155,7 +155,7 @@ public class MyBot : IChessBot
                             " Cutoffs: " + cutoffs +
                             " Positions: " + positionsEvaluated +
                             " PositionsLookedUp " + positionsLookedUp +
-                            " Depth: " + (currentDepth - 1));
+                            " Depth: " + currentDepth);
 #endif
 
         return bestMove;
