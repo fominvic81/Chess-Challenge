@@ -77,6 +77,12 @@ namespace ChessChallenge.Application
 
             buttonPos = UIHelper.Scale(new Vector2(405, 210));
             buttonSize = UIHelper.Scale(new Vector2(200, 55));
+            if (NextButtonInRow("Human vs PrevBot", ref buttonPos, spacing, buttonSize))
+            {
+                var whiteType = controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.MyBot : ChallengeController.PlayerType.Human;
+                var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.PrevBot : ChallengeController.PlayerType.Human;
+                controller.StartNewMatch(whiteType, blackType);
+            }
             if (NextButtonInRow("MyBot vs NegamaxV1", ref buttonPos, spacing, buttonSize))
             {
                 controller.StartNewMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.NegamaxV1);

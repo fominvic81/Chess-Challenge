@@ -1,4 +1,4 @@
-﻿#define Stats
+﻿//#define Stats
 using ChessChallenge.API;
 using System;
 using System.Linq;
@@ -143,7 +143,7 @@ public class MyBot : IChessBot
 
         timeToMove = Math.Max(150, timer.MillisecondsRemaining - 1000) * 4 / 5 / Math.Max(20, 60 - board.PlyCount);
 
-        for (; !endSearch;) Search(0, ++currentDepth, -inf, inf);
+        while (!endSearch) Search(0, ++currentDepth, -inf, inf);
 
         //timeToMove = 100000;
         //for (; currentDepth <= 6;) Search(0, ++currentDepth, -inf, inf);
@@ -158,8 +158,31 @@ public class MyBot : IChessBot
                             " Depth: " + currentDepth);
 #endif
 
+        //board.MakeMove(bestMove);
+        //EvaluateSide(true, true);
+
         return bestMove;
     }
+
+    //public int EvaluateSide(bool white, bool mopup)
+    //{
+    //    int evaluation = 0;
+    //    var king = board.GetKingSquare(white);
+
+    //    if (mopup)
+    //    {
+    //        var enemyKing = board.GetKingSquare(!white);
+    //        int centerManhattanDistance = (enemyKing.File ^ ((enemyKing.File) - 4) >> 8) + (enemyKing.Rank ^ ((enemyKing.Rank) - 4) >> 8);
+    //        int kingManhattanDistance = Math.Abs(king.File - enemyKing.File) + Math.Abs(king.Rank - enemyKing.Rank);
+    //        int mopupEval = (47 * centerManhattanDistance + 16 * (14 - kingManhattanDistance)) / 10;
+    //        //Console.WriteLine(mopupEval);
+    //        evaluation += mopupEval;
+    //    }
+
+    //    return evaluation;
+    //}
+
+    //public ulong GetPawnBitboard(bool white) => board.GetPieceBitboard(PieceType.Pawn, white);
 
     public int Evaluate()
     {
@@ -168,7 +191,7 @@ public class MyBot : IChessBot
 #endif
 
         int middleGame = 0, endgame = 0,
-            piecesNum = BitboardHelper.GetNumberOfSetBits(board.AllPiecesBitboard);
+            piecesNum = BitboardHelper.GetNumberOfSetBits(board.AllPiecesBitboard ^ board.GetPieceBitboard(PieceType.Pawn, true) ^ board.GetPieceBitboard(PieceType.Pawn, false)) - 5;
 
         foreach (PieceList list in board.GetAllPieceLists())
             foreach (Piece piece in list)
@@ -178,7 +201,11 @@ public class MyBot : IChessBot
                 endgame += pieceSquareTables[index + 384] * perspective;
             }
 
-        return (middleGame * piecesNum + endgame * (32 - piecesNum)) / (board.IsWhiteToMove ? 32 : -32);
+        int evaluation = (middleGame * piecesNum + endgame * (11 - piecesNum)) / (board.IsWhiteToMove ? 11 : -11);
+
+        //evaluation += EvaluateSide(board.IsWhiteToMove, evaluation > 200 && piecesNum < 8) - EvaluateSide(!board.IsWhiteToMove, evaluation < -200 && piecesNum < 8);
+
+        return evaluation;
     }
     public int Search(int plyFromRoot, int plyRemaining, int alpha, int beta)
     {
