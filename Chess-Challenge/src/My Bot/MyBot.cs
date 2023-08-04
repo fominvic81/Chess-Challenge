@@ -145,19 +145,9 @@ public class MyBot : IChessBot
 
         for (; !endSearch;) Search(0, currentDepth++, -inf, inf);
 
-        //Search(0, 0, true, -inf, inf);
-
         //timeToMove = 100000;
-        //for (; currentDepth <= 6;) Search(currentDepth, currentDepth++, true, -inf, inf);
+        //for (; currentDepth <= 6;) Search(0, currentDepth++, -inf, inf);
         //Console.WriteLine(timer.MillisecondsElapsedThisTurn);
-
-        //int eval = 0;
-        //for (; !endSearch;)
-        //{
-        //    int currendEval = Search(currentDepth, currentDepth++, true, -inf, inf);
-        //    if (!endSearch) eval = currendEval;
-        //}
-        //Console.WriteLine(eval);
 
 #if Stats
         Console.WriteLine("Time: " + timer.MillisecondsElapsedThisTurn +
@@ -275,13 +265,13 @@ public class MyBot : IChessBot
                 type = Exact;
                 currentBestMove = move;
                 alpha = eval;
+                if (plyFromRoot == 0) bestMove = currentBestMove;
             }
         }
 
         // Store position in Transposition Table
         entries[TTIndex] = new(board.ZobristKey, plyRemaining, alpha, currentBestMove, type);
 
-        if (plyFromRoot == 0) bestMove = currentBestMove;
         return alpha;
     }
 }
