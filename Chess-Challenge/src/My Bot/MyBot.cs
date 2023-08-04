@@ -46,8 +46,8 @@ public class MyBot : IChessBot
     static public int Exact = 0, Alpha = 1, Beta = 2, lookupFailed;
 
     // Better to use static fields when multithreading is off
-    public ulong TTSize = 1_000_000;
-    public Entry[] entries;
+    static public ulong TTSize = 1_000_000;
+    static public Entry[] entries = new Entry[TTSize];
     public ulong TTIndex => board.ZobristKey % TTSize;
 
     public decimal[] pieceSquareTablesCompressed = {
@@ -119,7 +119,6 @@ public class MyBot : IChessBot
 
     public MyBot()
     {
-        entries = new Entry[TTSize];
         pieceSquareTables = pieceSquareTablesCompressed
             .SelectMany(x => decimal.GetBits(x).Take(3))
             .SelectMany(BitConverter.GetBytes)
@@ -144,7 +143,7 @@ public class MyBot : IChessBot
 
         timeToMove = Math.Max(150, timer.MillisecondsRemaining - 1000) * 4 / 5 / Math.Max(20, 60 - board.PlyCount);
 
-        for (; !endSearch;) Search(0, currentDepth++, true, -inf, inf);
+        for (; !endSearch;) Search(0, currentDepth++, -inf, inf);
 
         //Search(0, 0, true, -inf, inf);
 
@@ -191,14 +190,14 @@ public class MyBot : IChessBot
 
         return (middleGame * piecesNum + endgame * (32 - piecesNum)) / (board.IsWhiteToMove ? 32 : -32);
     }
-    public int Search(int plyFromRoot, int plyRemaining, bool isRoot, int alpha, int beta)
+    public int Search(int plyFromRoot, int plyRemaining, int alpha, int beta)
     {
         // 50??
         if (endSearch || board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100) return 0;
 
         // Lookup value from transposition table
         Entry entry = entries[TTIndex];
-        if (!isRoot &&
+        if (plyFromRoot > 0 &&
             entry != null &&
             entry.key == board.ZobristKey &&
             entry.depth >= plyRemaining && (
@@ -214,7 +213,7 @@ public class MyBot : IChessBot
 
         Move[] moves = board.GetLegalMoves(plyRemaining <= 0);
 
-        int eval;
+        int eval = 0;
         if (plyRemaining <= 0)
         {
             eval = Evaluate();
@@ -238,7 +237,7 @@ public class MyBot : IChessBot
         {
             reverseScores[i] = 0;
             Move move = moves[i];
-            if (move.IsCapture) reverseScores[i] -= pieceValues[(int)move.CapturePieceType] * 10 - pieceValues[(int)move.MovePieceType];
+            if (move.IsCapture) reverseScores[i] -= pieceValues[(int)move.CapturePieceType] * (board.SquareIsAttackedByOpponent(move.TargetSquare) ? 5 : 10) - pieceValues[(int)move.MovePieceType];
             if ((BitboardHelper.GetPawnAttacks(move.TargetSquare, board.IsWhiteToMove) & board.GetPieceBitboard(PieceType.Pawn, !board.IsWhiteToMove)) != 0) reverseScores[i] += 100;
             if (move == probablyBestMove) reverseScores[i] -= 1000000;
         }
@@ -248,10 +247,18 @@ public class MyBot : IChessBot
         Move currentBestMove = moves[0];
         int type = Alpha;
 
-        foreach (Move move in moves)
+        for (int i = 0; i < moves.Length; ++i)
         {
+            Move move = moves[i];
+            bool needsFullSearch = true;
             board.MakeMove(move);
-            eval = -Search(plyFromRoot + 1, plyRemaining - 1 + (board.IsInCheck() ? 1 : 0), false, -beta, -alpha);
+
+            if (i >= 3 && plyRemaining >= 3 && !move.IsCapture)
+                needsFullSearch = (eval = -Search(plyFromRoot + 1, plyRemaining - 2, -beta, -alpha)) > alpha;
+
+            if (needsFullSearch)
+                eval = -Search(plyFromRoot + 1, plyRemaining - 1 + (board.IsInCheck() ? 1 : 0), -beta, -alpha);
+
             board.UndoMove(move);
             if (endSearch) return 0;
             if (eval >= beta)
@@ -274,7 +281,7 @@ public class MyBot : IChessBot
         // Store position in Transposition Table
         entries[TTIndex] = new(board.ZobristKey, plyRemaining, alpha, currentBestMove, type);
 
-        if (isRoot) bestMove = currentBestMove;
+        if (plyFromRoot == 0) bestMove = currentBestMove;
         return alpha;
     }
 }
