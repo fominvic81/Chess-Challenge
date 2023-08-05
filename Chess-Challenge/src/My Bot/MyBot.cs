@@ -3,20 +3,6 @@ using ChessChallenge.API;
 using System;
 using System.Linq;
 
-public class Entry
-{
-    public ulong key;
-    public int depth, value, type;
-    public Move move;
-
-    public Entry() { }
-
-    public Entry(ulong key_p, int depth_p, int value_p, Move move_p, int type_p)
-    {
-        (key, depth, value, move, type) = (key_p, depth_p, value_p, move_p, type_p);
-    }
-}
-
 public class MyBot : IChessBot
 {
     public int[]
@@ -28,6 +14,8 @@ public class MyBot : IChessBot
     public int
         inf = 1000000000,
         timeToMove;
+
+    public record struct Entry(ulong Key, int Depth, int Value, Move Move, int Type);
 
 #if Stats
     public int
@@ -164,25 +152,24 @@ public class MyBot : IChessBot
         return bestMove;
     }
 
-    //public int EvaluateSide(bool white, bool mopup)
-    //{
-    //    int evaluation = 0;
-    //    var king = board.GetKingSquare(white);
+    public int EvaluateSide(bool white)
+    {
+        int evaluation = 0;
+        //var king = board.GetKingSquare(white);
+        //if (mopup)
+        //{
+        //    var enemyKing = board.GetKingSquare(!white);
+        //    int centerManhattanDistance = (enemyKing.File ^ ((enemyKing.File) - 4) >> 8) + (enemyKing.Rank ^ ((enemyKing.Rank) - 4) >> 8);
+        //    int kingManhattanDistance = Math.Abs(king.File - enemyKing.File) + Math.Abs(king.Rank - enemyKing.Rank);
+        //    int mopupEval = (47 * centerManhattanDistance + 16 * (14 - kingManhattanDistance)) / 10;
+        //    //Console.WriteLine(mopupEval);
+        //    evaluation += mopupEval;
+        //}
 
-    //    if (mopup)
-    //    {
-    //        var enemyKing = board.GetKingSquare(!white);
-    //        int centerManhattanDistance = (enemyKing.File ^ ((enemyKing.File) - 4) >> 8) + (enemyKing.Rank ^ ((enemyKing.Rank) - 4) >> 8);
-    //        int kingManhattanDistance = Math.Abs(king.File - enemyKing.File) + Math.Abs(king.Rank - enemyKing.Rank);
-    //        int mopupEval = (47 * centerManhattanDistance + 16 * (14 - kingManhattanDistance)) / 10;
-    //        //Console.WriteLine(mopupEval);
-    //        evaluation += mopupEval;
-    //    }
+        return evaluation;
+    }
 
-    //    return evaluation;
-    //}
-
-    //public ulong GetPawnBitboard(bool white) => board.GetPieceBitboard(PieceType.Pawn, white);
+    public ulong GetPawnBitboard(bool white) => board.GetPieceBitboard(PieceType.Pawn, white);
 
     public int Evaluate()
     {
@@ -191,7 +178,7 @@ public class MyBot : IChessBot
 #endif
 
         int middleGame = 0, endgame = 0,
-            piecesNum = BitboardHelper.GetNumberOfSetBits(board.AllPiecesBitboard ^ board.GetPieceBitboard(PieceType.Pawn, true) ^ board.GetPieceBitboard(PieceType.Pawn, false)) - 5;
+            piecesNum = BitboardHelper.GetNumberOfSetBits(board.AllPiecesBitboard ^ GetPawnBitboard(true) ^ GetPawnBitboard(false)) - 5;
 
         foreach (PieceList list in board.GetAllPieceLists())
             foreach (Piece piece in list)
@@ -203,9 +190,7 @@ public class MyBot : IChessBot
 
         int evaluation = (middleGame * piecesNum + endgame * (11 - piecesNum)) / (board.IsWhiteToMove ? 11 : -11);
 
-        //evaluation += EvaluateSide(board.IsWhiteToMove, evaluation > 200 && piecesNum < 8) - EvaluateSide(!board.IsWhiteToMove, evaluation < -200 && piecesNum < 8);
-
-        return evaluation;
+        return evaluation + EvaluateSide(board.IsWhiteToMove) - EvaluateSide(!board.IsWhiteToMove);
     }
     public int Search(int plyFromRoot, int plyRemaining, int alpha, int beta)
     {
@@ -214,27 +199,27 @@ public class MyBot : IChessBot
 
         // Lookup value from transposition table
         Entry entry = entries[TTIndex];
+        int type = entry.Type,
+            value = entry.Value,
+            eval = 0;
+
         if (plyFromRoot > 0 &&
-            entry != null &&
-            entry.key == board.ZobristKey &&
-            entry.depth >= plyRemaining && (
-            (entry.type == Exact) ||
-            (entry.type == Alpha && entry.value <= alpha) ||
-            (entry.type == Beta && entry.value >= beta)
+            entry.Key == board.ZobristKey &&
+            entry.Depth >= plyRemaining && (
+            (type == Exact) ||
+            (type == Alpha && value <= alpha) ||
+            (type == Beta && value >= beta)
             ))
 #if Stats
             { ++positionsLookedUp; return entry.value; }
 #else
-                return entry.value;
+                return value;
 #endif
+        type = Alpha;
 
-        Move[] moves = board.GetLegalMoves(plyRemaining <= 0);
-
-        int eval = 0;
         if (plyRemaining <= 0)
         {
             eval = Evaluate();
-            if (moves.Length == 0) return eval;
             if (eval >= beta)
 #if Stats
             { ++cutoffs; return beta; }
@@ -244,25 +229,21 @@ public class MyBot : IChessBot
             if (eval > alpha) alpha = eval;
         }
 
-        if (moves.Length == 0) return board.IsInCheck() ? -10000000 + plyFromRoot : 0;
-
+        var moves = board.GetLegalMoves(plyRemaining <= 0);
+        if (moves.Length == 0) return board.IsInCheck() ? -10000000 + plyFromRoot : eval;
 
         // Move ordering
-        Move? probablyBestMove = entries[TTIndex]?.move;
-
         for (int i = 0; i < moves.Length; ++i)
         {
             reverseScores[i] = 0;
             Move move = moves[i];
             if (move.IsCapture) reverseScores[i] -= pieceValues[(int)move.CapturePieceType] * (board.SquareIsAttackedByOpponent(move.TargetSquare) ? 5 : 10) - pieceValues[(int)move.MovePieceType];
-            if ((BitboardHelper.GetPawnAttacks(move.TargetSquare, board.IsWhiteToMove) & board.GetPieceBitboard(PieceType.Pawn, !board.IsWhiteToMove)) != 0) reverseScores[i] += 100;
-            if (move == probablyBestMove) reverseScores[i] -= 1000000;
+            if (move == entries[TTIndex].Move) reverseScores[i] -= 1000000;
         }
 
         Array.Sort(reverseScores, moves, 0, moves.Length);
 
         Move currentBestMove = moves[0];
-        int type = Alpha;
 
         for (int i = 0; i < moves.Length; ++i)
         {

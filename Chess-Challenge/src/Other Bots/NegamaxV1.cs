@@ -4,6 +4,19 @@ using System.Linq;
 
 namespace ChessChallenge.Example
 {
+    public class Entry
+    {
+        public ulong key;
+        public int depth, value, type;
+        public Move move;
+
+        public Entry() { }
+
+        public Entry(ulong key_p, int depth_p, int value_p, Move move_p, int type_p)
+        {
+            (key, depth, value, move, type) = (key_p, depth_p, value_p, move_p, type_p);
+        }
+    }
     // A simple bot that can spot mate in one, and always captures the most valuable piece it can.
     // Plays randomly otherwise.
     public class NegamaxV1 : IChessBot
