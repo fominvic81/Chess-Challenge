@@ -180,17 +180,22 @@ public class MyBot : IChessBot
         int middleGame = 0, endgame = 0,
             piecesNum = BitboardHelper.GetNumberOfSetBits(board.AllPiecesBitboard ^ GetPawnBitboard(true) ^ GetPawnBitboard(false)) - 5;
 
-        foreach (PieceList list in board.GetAllPieceLists())
-            foreach (Piece piece in list)
-            {
-                int index = ((int)piece.PieceType - 1) * 64 + piece.Square.Index ^ (piece.IsWhite ? 0 : 56), perspective = (piece.IsWhite ? 1 : -1);
-                middleGame += pieceSquareTables[index] * perspective;
-                endgame += pieceSquareTables[index + 384] * perspective;
+        foreach (bool isWhite in stackalloc[] { true, false })
+        {
+            for (int piece = 0; piece < 6; ++piece) {
+                ulong bitboard = board.GetPieceBitboard((PieceType)(piece + 1), isWhite);
+
+                while (bitboard != 0)
+                {
+                    int index = piece * 64 + BitboardHelper.ClearAndGetIndexOfLSB(ref bitboard) ^ (isWhite ? 0 : 56);
+                    middleGame += pieceSquareTables[index];
+                    endgame += pieceSquareTables[index + 384];
+                }
             }
-
-        int evaluation = (middleGame * piecesNum + endgame * (11 - piecesNum)) / (board.IsWhiteToMove ? 11 : -11);
-
-        return evaluation + EvaluateSide(board.IsWhiteToMove) - EvaluateSide(!board.IsWhiteToMove);
+            endgame = -endgame;
+            middleGame = -middleGame;
+        }
+        return (middleGame * piecesNum + endgame * (11 - piecesNum)) / (board.IsWhiteToMove ? 11 : -11) + EvaluateSide(board.IsWhiteToMove) - EvaluateSide(!board.IsWhiteToMove);
     }
     public int Search(int plyFromRoot, int plyRemaining, int alpha, int beta)
     {

@@ -182,17 +182,23 @@ namespace ChessChallenge.Example
             int middleGame = 0, endgame = 0,
                 piecesNum = BitboardHelper.GetNumberOfSetBits(board.AllPiecesBitboard ^ GetPawnBitboard(true) ^ GetPawnBitboard(false)) - 5;
 
-            foreach (PieceList list in board.GetAllPieceLists())
-                foreach (Piece piece in list)
+            foreach (bool isWhite in stackalloc[] { true, false })
+            {
+                for (int piece = 0; piece < 6; ++piece)
                 {
-                    int index = ((int)piece.PieceType - 1) * 64 + piece.Square.Index ^ (piece.IsWhite ? 0 : 56), perspective = (piece.IsWhite ? 1 : -1);
-                    middleGame += pieceSquareTables[index] * perspective;
-                    endgame += pieceSquareTables[index + 384] * perspective;
+                    ulong bitboard = board.GetPieceBitboard((PieceType)(piece + 1), isWhite);
+
+                    while (bitboard != 0)
+                    {
+                        int index = piece * 64 + BitboardHelper.ClearAndGetIndexOfLSB(ref bitboard) ^ (isWhite ? 0 : 56);
+                        middleGame += pieceSquareTables[index];
+                        endgame += pieceSquareTables[index + 384];
+                    }
                 }
-
-            int evaluation = (middleGame * piecesNum + endgame * (11 - piecesNum)) / (board.IsWhiteToMove ? 11 : -11);
-
-            return evaluation + EvaluateSide(board.IsWhiteToMove) - EvaluateSide(!board.IsWhiteToMove);
+                endgame = -endgame;
+                middleGame = -middleGame;
+            }
+            return (middleGame * piecesNum + endgame * (11 - piecesNum)) / (board.IsWhiteToMove ? 11 : -11) + EvaluateSide(board.IsWhiteToMove) - EvaluateSide(!board.IsWhiteToMove);
         }
         public int Search(int plyFromRoot, int plyRemaining, int alpha, int beta)
         {
@@ -201,27 +207,27 @@ namespace ChessChallenge.Example
 
             // Lookup value from transposition table
             Entry entry = entries[TTIndex];
-            int eType = entry.Type, value = entry.Value;
+            int type = entry.Type,
+                value = entry.Value,
+                eval = 0;
+
             if (plyFromRoot > 0 &&
                 entry.Key == board.ZobristKey &&
                 entry.Depth >= plyRemaining && (
-                (eType == Exact) ||
-                (eType == Alpha && value <= alpha) ||
-                (eType == Beta && value >= beta)
+                (type == Exact) ||
+                (type == Alpha && value <= alpha) ||
+                (type == Beta && value >= beta)
                 ))
 #if Stats
             { ++positionsLookedUp; return entry.value; }
 #else
                 return value;
 #endif
+            type = Alpha;
 
-            var moves = board.GetLegalMoves(plyRemaining <= 0);
-
-            int eval = 0;
             if (plyRemaining <= 0)
             {
                 eval = Evaluate();
-                if (moves.Length == 0) return eval;
                 if (eval >= beta)
 #if Stats
             { ++cutoffs; return beta; }
@@ -231,7 +237,8 @@ namespace ChessChallenge.Example
                 if (eval > alpha) alpha = eval;
             }
 
-            if (moves.Length == 0) return board.IsInCheck() ? -10000000 + plyFromRoot : 0;
+            var moves = board.GetLegalMoves(plyRemaining <= 0);
+            if (moves.Length == 0) return board.IsInCheck() ? -10000000 + plyFromRoot : eval;
 
             // Move ordering
             for (int i = 0; i < moves.Length; ++i)
@@ -245,7 +252,6 @@ namespace ChessChallenge.Example
             Array.Sort(reverseScores, moves, 0, moves.Length);
 
             Move currentBestMove = moves[0];
-            int type = Alpha;
 
             for (int i = 0; i < moves.Length; ++i)
             {
