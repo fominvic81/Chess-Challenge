@@ -5,9 +5,14 @@ using System.Linq;
 
 public class MyBot : IChessBot
 {
+
+    public int[,,] history = new int[2,64,64];
+
     public int[]
         // null, pawn, knight, bishop, rook, queen, king
-        pieceValues = { 0, 100, 300, 320, 500, 900, 10000 },
+        pieceValues =
+            { 0, 82, 337, 365, 477, 1025, 0,
+              0, 94, 281, 297, 512, 936, 0 },
         reverseScores = new int[200],
         pieceSquareTables;
 
@@ -113,8 +118,12 @@ public class MyBot : IChessBot
             .Select(x => x * 375 / 255 - 176)
             .ToArray();
 
-        for (int i = 0; i < 768; ++i)
-            pieceSquareTables[i] += pieceValues[i / 64 % 6 + 1];
+        for (int i = 0; i < 384; ++i)
+        {
+            pieceSquareTables[i] += pieceValues[i / 64 + 1];
+            pieceSquareTables[i + 384] += pieceValues[i / 64 + 8];
+            //Console.WriteLine(pieceValues[i / 64 + 1] + " " + pieceValues[i / 64 + 8]);
+        }
     }
 
     public Move Think(Board board_param, Timer timer_param)
@@ -146,27 +155,7 @@ public class MyBot : IChessBot
                             " Depth: " + currentDepth);
 #endif
 
-        //board.MakeMove(bestMove);
-        //EvaluateSide(true, true);
-
         return bestMove;
-    }
-
-    public int EvaluateSide(bool white)
-    {
-        int evaluation = 0;
-        //var king = board.GetKingSquare(white);
-        //if (mopup)
-        //{
-        //    var enemyKing = board.GetKingSquare(!white);
-        //    int centerManhattanDistance = (enemyKing.File ^ ((enemyKing.File) - 4) >> 8) + (enemyKing.Rank ^ ((enemyKing.Rank) - 4) >> 8);
-        //    int kingManhattanDistance = Math.Abs(king.File - enemyKing.File) + Math.Abs(king.Rank - enemyKing.Rank);
-        //    int mopupEval = (47 * centerManhattanDistance + 16 * (14 - kingManhattanDistance)) / 10;
-        //    //Console.WriteLine(mopupEval);
-        //    evaluation += mopupEval;
-        //}
-
-        return evaluation;
     }
 
     public ulong GetPawnBitboard(bool white) => board.GetPieceBitboard(PieceType.Pawn, white);
@@ -180,22 +169,46 @@ public class MyBot : IChessBot
         int middleGame = 0, endgame = 0,
             piecesNum = BitboardHelper.GetNumberOfSetBits(board.AllPiecesBitboard ^ GetPawnBitboard(true) ^ GetPawnBitboard(false)) - 5;
 
-        foreach (bool isWhite in stackalloc[] { true, false })
+        foreach (bool white in stackalloc[] { true, false })
         {
+            var enemyKing = board.GetKingSquare(!white);
+            // Material
             for (int piece = 0; piece < 6; ++piece) {
-                ulong bitboard = board.GetPieceBitboard((PieceType)(piece + 1), isWhite);
+                ulong bitboard = board.GetPieceBitboard((PieceType)(piece + 1), white);
 
                 while (bitboard != 0)
                 {
-                    int index = piece * 64 + BitboardHelper.ClearAndGetIndexOfLSB(ref bitboard) ^ (isWhite ? 0 : 56);
+                    int square = BitboardHelper.ClearAndGetIndexOfLSB(ref bitboard),
+                        index = piece * 64 + square ^ (white ? 0 : 56);
                     middleGame += pieceSquareTables[index];
                     endgame += pieceSquareTables[index + 384];
+
+                    // king safety
+                    //if (piece != 5) endgame += (Math.Abs((square & 7) - enemyKing.File) + Math.Abs((square >> 3) - enemyKing.Rank)) * pieceValues[piece + 1] / 14 / 40;
                 }
             }
+
+            //King shield
+            //middleGame += BitboardHelper.GetNumberOfSetBits(BitboardHelper.GetKingAttacks(board.GetKingSquare(white)) & GetPawnBitboard(white)) * 10;
+
             endgame = -endgame;
             middleGame = -middleGame;
         }
-        return (middleGame * piecesNum + endgame * (11 - piecesNum)) / (board.IsWhiteToMove ? 11 : -11) + EvaluateSide(board.IsWhiteToMove) - EvaluateSide(!board.IsWhiteToMove);
+
+        //foreach (bool white in stackalloc[] { true, false })
+        //{
+        //    if (piecesNum < 4 && endgame * (white ? 1 : -1) > 300)
+        //    {
+        //        Square king = board.GetKingSquare(white), enemyKing = board.GetKingSquare(!white);
+        //        int centerManhattanDistance = (enemyKing.File ^ ((enemyKing.File) - 4) >> 8) + (enemyKing.Rank ^ ((enemyKing.Rank) - 4) >> 8);
+        //        int kingManhattanDistance = Math.Abs(king.File - enemyKing.File) + Math.Abs(king.Rank - enemyKing.Rank);
+        //        int mopupEval = (47 * centerManhattanDistance + 16 * (14 - kingManhattanDistance)) / 10;
+        //        endgame += mopupEval;
+        //    }
+        //    endgame = -endgame;
+        //}
+
+        return (middleGame * piecesNum + endgame * (11 - piecesNum)) / (board.IsWhiteToMove ? 11 : -11);
     }
     public int Search(int plyFromRoot, int plyRemaining, int alpha, int beta)
     {
@@ -237,15 +250,16 @@ public class MyBot : IChessBot
         var moves = board.GetLegalMoves(plyRemaining <= 0);
         if (moves.Length == 0) return board.IsInCheck() ? -10000000 + plyFromRoot : eval;
 
+        int turn = board.IsWhiteToMove ? 1 : 0;
         // Move ordering
         for (int i = 0; i < moves.Length; ++i)
         {
-            reverseScores[i] = 0;
             Move move = moves[i];
-            if (move.IsCapture) reverseScores[i] -= pieceValues[(int)move.CapturePieceType] * (board.SquareIsAttackedByOpponent(move.TargetSquare) ? 5 : 10) - pieceValues[(int)move.MovePieceType];
-            if (move == entries[TTIndex].Move) reverseScores[i] -= 1000000;
+            reverseScores[i] =
+                -(move == entries[TTIndex].Move ? 10000000 :
+                move.IsCapture ? pieceValues[(int)move.CapturePieceType + 7] * (board.SquareIsAttackedByOpponent(move.TargetSquare) ? 5 : 10) - pieceValues[(int)move.MovePieceType + 7] :
+                history[turn, move.StartSquare.Index, move.TargetSquare.Index]);
         }
-
         Array.Sort(reverseScores, moves, 0, moves.Length);
 
         Move currentBestMove = moves[0];
@@ -268,6 +282,7 @@ public class MyBot : IChessBot
             {
                 // Store position in Transposition Table
                 entries[TTIndex] = new(board.ZobristKey, plyRemaining, eval, currentBestMove, Beta);
+                if (!move.IsCapture) history[turn, move.StartSquare.Index, move.TargetSquare.Index] += plyRemaining;
 #if Stats
                 ++cutoffs;
 #endif
