@@ -15,7 +15,9 @@ public class MyBot : IChessBot
               0, 94, 281, 297, 512, 936, 0 },
         reverseScores = new int[200],
         phaseWeights = { 0, 1, 1, 2, 4, 0 },
-        pieceSquareTables;
+        pieceSquareTables,
+        killerMoveA = new int[256],
+        killerMoveB = new int[256];
 
     public int
         inf = 1000000000,
@@ -210,7 +212,6 @@ public class MyBot : IChessBot
         //    }
         //    endgame = -endgame;
         //}
-
         if (phase > 24) phase = 24;
         return (middleGame * phase + endgame * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24);
     }
@@ -277,9 +278,10 @@ public class MyBot : IChessBot
         {
             Move move = moves[i];
             reverseScores[i] =
-                -(move == entries[TTIndex].Move ? 10000000 :
-                move.IsCapture ? pieceValues[(int)move.CapturePieceType + 7] * (board.SquareIsAttackedByOpponent(move.TargetSquare) ? 5 : 10) - pieceValues[(int)move.MovePieceType + 7] :
-                history[turn, move.StartSquare.Index, move.TargetSquare.Index]);
+                -(move == entries[TTIndex].Move ? 10000000 : // hashed move
+                move.IsCapture ? pieceValues[(int)move.CapturePieceType + 7] * (board.SquareIsAttackedByOpponent(move.TargetSquare) ? 100 : 1000) - pieceValues[(int)move.MovePieceType + 7] : // captures
+                move.RawValue == killerMoveA[plyFromRoot] || move.RawValue == killerMoveB[plyFromRoot] ? 8000 : // killer moves
+                history[turn, move.StartSquare.Index, move.TargetSquare.Index]); // history
         }
         Array.Sort(reverseScores, moves, 0, moves.Length);
 
@@ -304,7 +306,12 @@ public class MyBot : IChessBot
                 // Store position in Transposition Table
                 entries[TTIndex] = new(board.ZobristKey, plyRemaining, eval, currentBestMove, Beta);
 
-                if (!move.IsCapture) history[turn, move.StartSquare.Index, move.TargetSquare.Index] += plyRemaining; // plyRemaining * plyRemaining ??
+                if (!move.IsCapture)
+                {
+                    killerMoveB[plyFromRoot] = killerMoveA[plyFromRoot];
+                    killerMoveA[plyFromRoot] = move.RawValue;
+                    history[turn, move.StartSquare.Index, move.TargetSquare.Index] += plyRemaining; // plyRemaining * plyRemaining ??
+                }
 #if Stats
                 ++cutoffs;
 #endif

@@ -9,6 +9,7 @@ namespace ChessChallenge.Example
     {
 
         public int[,,] history = new int[2, 64, 64];
+        public int[,] killerMoves = new int[2, 256];
 
         public int[]
             // null, pawn, knight, bishop, rook, queen, king
@@ -16,6 +17,7 @@ namespace ChessChallenge.Example
                 { 0, 82, 337, 365, 477, 1025, 0,
               0, 94, 281, 297, 512, 936, 0 },
             reverseScores = new int[200],
+            phaseWeights = { 0, 1, 1, 2, 4, 0 },
             pieceSquareTables;
 
         public int
@@ -169,7 +171,7 @@ namespace ChessChallenge.Example
 #endif
 
             int middleGame = 0, endgame = 0,
-                piecesNum = BitboardHelper.GetNumberOfSetBits(board.AllPiecesBitboard ^ GetPawnBitboard(true) ^ GetPawnBitboard(false)) - 5; // TODO: Fix posibility of it being negative
+                phase = 0;
 
             foreach (bool white in stackalloc[] { true, false })
             {
@@ -185,6 +187,7 @@ namespace ChessChallenge.Example
                             index = piece * 64 + square ^ (white ? 0 : 56);
                         middleGame += pieceSquareTables[index];
                         endgame += pieceSquareTables[index + 384];
+                        phase += phaseWeights[piece];
 
                         // king safety
                         //if (piece != 5) endgame += (Math.Abs((square & 7) - enemyKing.File) + Math.Abs((square >> 3) - enemyKing.Rank)) * pieceValues[piece + 1] / 14 / 40;
@@ -210,8 +213,8 @@ namespace ChessChallenge.Example
             //    }
             //    endgame = -endgame;
             //}
-
-            return (middleGame * piecesNum + endgame * (11 - piecesNum)) / (board.IsWhiteToMove ? 11 : -11);
+            if (phase > 24) phase = 24;
+            return (middleGame * phase + endgame * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24);
         }
         public int Search(int plyFromRoot, int plyRemaining, int alpha, int beta)
         {
@@ -277,7 +280,9 @@ namespace ChessChallenge.Example
                 Move move = moves[i];
                 reverseScores[i] =
                     -(move == entries[TTIndex].Move ? 10000000 :
-                    move.IsCapture ? pieceValues[(int)move.CapturePieceType + 7] * (board.SquareIsAttackedByOpponent(move.TargetSquare) ? 5 : 10) - pieceValues[(int)move.MovePieceType + 7] :
+                    move.IsCapture ? pieceValues[(int)move.CapturePieceType + 7] * (board.SquareIsAttackedByOpponent(move.TargetSquare) ? 100 : 1000) - pieceValues[(int)move.MovePieceType + 7] :
+                    move.RawValue == killerMoves[0, plyFromRoot] ? 9000 :
+                    move.RawValue == killerMoves[1, plyFromRoot] ? 8000 :
                     history[turn, move.StartSquare.Index, move.TargetSquare.Index]);
             }
             Array.Sort(reverseScores, moves, 0, moves.Length);
@@ -303,7 +308,15 @@ namespace ChessChallenge.Example
                     // Store position in Transposition Table
                     entries[TTIndex] = new(board.ZobristKey, plyRemaining, eval, currentBestMove, Beta);
 
-                    if (!move.IsCapture) history[turn, move.StartSquare.Index, move.TargetSquare.Index] += plyRemaining; // plyRemaining * plyRemaining ??
+                    if (!move.IsCapture)
+                    {
+                        //if (plyFromRoot < 20)
+                        //{
+                        killerMoves[1, plyFromRoot] = killerMoves[0, plyFromRoot];
+                        killerMoves[0, plyFromRoot] = move.RawValue;
+                        //}
+                        history[turn, move.StartSquare.Index, move.TargetSquare.Index] += plyRemaining; // plyRemaining * plyRemaining ??
+                    }
 #if Stats
                 ++cutoffs;
 #endif
