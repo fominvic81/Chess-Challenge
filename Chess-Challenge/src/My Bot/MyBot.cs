@@ -9,10 +9,8 @@ public class MyBot : IChessBot
     public int[,,] history = new int[2, 64, 64];
 
     public int[]
-        // null, pawn, knight, bishop, rook, queen, king
         pieceValues =
-            { 0, 82, 337, 365, 477, 1025, 0,
-              0, 94, 281, 297, 512, 936, 0 },
+            { 0, 82, 337, 365, 477, 1025, 0, 94, 281, 297, 512, 936, 0 },
         reverseScores = new int[200],
         phaseWeights = { 0, 1, 1, 2, 4, 0 },
         pieceSquareTables,
@@ -121,12 +119,8 @@ public class MyBot : IChessBot
             .Select(x => x * 375 / 255 - 176)
             .ToArray();
 
-        for (int i = 0; i < 384; ++i)
-        {
-            pieceSquareTables[i] += pieceValues[i / 64 + 1];
-            pieceSquareTables[i + 384] += pieceValues[i / 64 + 8];
-            //Console.WriteLine(pieceValues[i / 64 + 1] + " " + pieceValues[i / 64 + 8]);
-        }
+        for (int i = 0; i < 768;)
+            pieceSquareTables[i] += pieceValues[i++ / 64 + 1];
     }
 
     public Move Think(Board board_param, Timer timer_param)
@@ -161,8 +155,6 @@ public class MyBot : IChessBot
         return bestMove;
     }
 
-    public ulong GetPawnBitboard(bool white) => board.GetPieceBitboard(PieceType.Pawn, white);
-
     public int Evaluate()
     {
 #if Stats
@@ -194,7 +186,7 @@ public class MyBot : IChessBot
             }
 
             //King shield
-            //middleGame += BitboardHelper.GetNumberOfSetBits(BitboardHelper.GetKingAttacks(board.GetKingSquare(white)) & GetPawnBitboard(white)) * 10;
+            //middleGame += BitboardHelper.GetNumberOfSetBits(BitboardHelper.GetKingAttacks(board.GetKingSquare(white)) & board.GetPieceBitboard(PieceType.Pawn, white)) * 10;
 
             endgame = -endgame;
             middleGame = -middleGame;
@@ -217,8 +209,7 @@ public class MyBot : IChessBot
     }
     public int Search(int plyFromRoot, int plyRemaining, int alpha, int beta)
     {
-        // 50??
-        if (endSearch || board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100) return 0;
+        if (endSearch || board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.IsFiftyMoveDraw()) return 0;
 
         bool isInCheck = board.IsInCheck();
         if (isInCheck) ++plyRemaining;
@@ -279,7 +270,7 @@ public class MyBot : IChessBot
             Move move = moves[i];
             reverseScores[i] =
                 -(move == entries[TTIndex].Move ? 10000000 : // hashed move
-                move.IsCapture ? pieceValues[(int)move.CapturePieceType + 7] * (board.SquareIsAttackedByOpponent(move.TargetSquare) ? 100 : 1000) - pieceValues[(int)move.MovePieceType + 7] : // captures
+                move.IsCapture ? pieceValues[(int)move.CapturePieceType + 6] * (board.SquareIsAttackedByOpponent(move.TargetSquare) ? 100 : 1000) - pieceValues[(int)move.MovePieceType + 6] : // captures
                 move.RawValue == killerMoveA[plyFromRoot] || move.RawValue == killerMoveB[plyFromRoot] ? 8000 : // killer moves
                 history[turn, move.StartSquare.Index, move.TargetSquare.Index]); // history
         }

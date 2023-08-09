@@ -9,7 +9,6 @@ namespace ChessChallenge.Example
     {
 
         public int[,,] history = new int[2, 64, 64];
-        public int[,] killerMoves = new int[2, 256];
 
         public int[]
             // null, pawn, knight, bishop, rook, queen, king
@@ -18,7 +17,9 @@ namespace ChessChallenge.Example
               0, 94, 281, 297, 512, 936, 0 },
             reverseScores = new int[200],
             phaseWeights = { 0, 1, 1, 2, 4, 0 },
-            pieceSquareTables;
+            pieceSquareTables,
+            killerMoveA = new int[256],
+            killerMoveB = new int[256];
 
         public int
             inf = 1000000000,
@@ -279,11 +280,10 @@ namespace ChessChallenge.Example
             {
                 Move move = moves[i];
                 reverseScores[i] =
-                    -(move == entries[TTIndex].Move ? 10000000 :
-                    move.IsCapture ? pieceValues[(int)move.CapturePieceType + 7] * (board.SquareIsAttackedByOpponent(move.TargetSquare) ? 100 : 1000) - pieceValues[(int)move.MovePieceType + 7] :
-                    move.RawValue == killerMoves[0, plyFromRoot] ? 9000 :
-                    move.RawValue == killerMoves[1, plyFromRoot] ? 8000 :
-                    history[turn, move.StartSquare.Index, move.TargetSquare.Index]);
+                    -(move == entries[TTIndex].Move ? 10000000 : // hashed move
+                    move.IsCapture ? pieceValues[(int)move.CapturePieceType + 7] * (board.SquareIsAttackedByOpponent(move.TargetSquare) ? 100 : 1000) - pieceValues[(int)move.MovePieceType + 7] : // captures
+                    move.RawValue == killerMoveA[plyFromRoot] || move.RawValue == killerMoveB[plyFromRoot] ? 8000 : // killer moves
+                    history[turn, move.StartSquare.Index, move.TargetSquare.Index]); // history
             }
             Array.Sort(reverseScores, moves, 0, moves.Length);
 
@@ -310,11 +310,8 @@ namespace ChessChallenge.Example
 
                     if (!move.IsCapture)
                     {
-                        //if (plyFromRoot < 20)
-                        //{
-                        killerMoves[1, plyFromRoot] = killerMoves[0, plyFromRoot];
-                        killerMoves[0, plyFromRoot] = move.RawValue;
-                        //}
+                        killerMoveB[plyFromRoot] = killerMoveA[plyFromRoot];
+                        killerMoveA[plyFromRoot] = move.RawValue;
                         history[turn, move.StartSquare.Index, move.TargetSquare.Index] += plyRemaining; // plyRemaining * plyRemaining ??
                     }
 #if Stats
