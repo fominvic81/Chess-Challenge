@@ -169,11 +169,11 @@ namespace ChessChallenge.Example
 #endif
 
             int middleGame = 0, endgame = 0,
-                piecesNum = BitboardHelper.GetNumberOfSetBits(board.AllPiecesBitboard ^ GetPawnBitboard(true) ^ GetPawnBitboard(false)) - 5;
+                piecesNum = BitboardHelper.GetNumberOfSetBits(board.AllPiecesBitboard ^ GetPawnBitboard(true) ^ GetPawnBitboard(false)) - 5; // TODO: Fix posibility of it being negative
 
             foreach (bool white in stackalloc[] { true, false })
             {
-                var enemyKing = board.GetKingSquare(!white);
+                //var enemyKing = board.GetKingSquare(!white);
                 // Material
                 for (int piece = 0; piece < 6; ++piece)
                 {
@@ -218,11 +218,15 @@ namespace ChessChallenge.Example
             // 50??
             if (endSearch || board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100) return 0;
 
+            bool isInCheck = board.IsInCheck();
+            if (isInCheck) ++plyRemaining;
+
             // Lookup value from transposition table
             Entry entry = entries[TTIndex];
             int type = entry.Type,
                 value = entry.Value,
-                eval = 0;
+                eval = 0,
+                turn = board.IsWhiteToMove ? 1 : 0;
 
             if (plyFromRoot > 0 &&
                 entry.Key == board.ZobristKey &&
@@ -250,10 +254,23 @@ namespace ChessChallenge.Example
                 if (eval > alpha) alpha = eval;
             }
 
-            var moves = board.GetLegalMoves(plyRemaining <= 0);
-            if (moves.Length == 0) return board.IsInCheck() ? -10000000 + plyFromRoot : eval;
+            ////eval = Evaluate();
+            ////if (!isInCheck && eval - 85 * plyRemaining >= beta) return eval - 85 * plyRemaining;
+            //if (plyRemaining >= 2 && plyFromRoot > 0 && !isInCheck)
+            //{
+            //    board.ForceSkipTurn();
 
-            int turn = board.IsWhiteToMove ? 1 : 0;
+            //    eval = -Search(plyFromRoot + 1, plyRemaining - 3 - plyRemaining / 6, -beta, 1 - beta);
+
+            //    board.UndoSkipTurn();
+
+            //    // TODO: add stats
+            //    if (eval >= beta) return eval;
+            //}
+
+            var moves = board.GetLegalMoves(plyRemaining <= 0);
+            if (moves.Length == 0) return isInCheck ? -10000000 + plyFromRoot : eval;
+
             // Move ordering
             for (int i = 0; i < moves.Length; ++i)
             {
@@ -277,7 +294,7 @@ namespace ChessChallenge.Example
                     needsFullSearch = (eval = -Search(plyFromRoot + 1, plyRemaining - 2, -beta, -alpha)) > alpha;
 
                 if (needsFullSearch)
-                    eval = -Search(plyFromRoot + 1, plyRemaining - 1 + (board.IsInCheck() ? 1 : 0), -beta, -alpha);
+                    eval = -Search(plyFromRoot + 1, plyRemaining - 1, -beta, -alpha);
 
                 board.UndoMove(move);
                 if (endSearch) return 0;
@@ -285,7 +302,8 @@ namespace ChessChallenge.Example
                 {
                     // Store position in Transposition Table
                     entries[TTIndex] = new(board.ZobristKey, plyRemaining, eval, currentBestMove, Beta);
-                    if (!move.IsCapture) history[turn, move.StartSquare.Index, move.TargetSquare.Index] += plyRemaining * plyRemaining;
+
+                    if (!move.IsCapture) history[turn, move.StartSquare.Index, move.TargetSquare.Index] += plyRemaining; // plyRemaining * plyRemaining ??
 #if Stats
                 ++cutoffs;
 #endif

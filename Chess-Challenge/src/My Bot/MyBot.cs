@@ -6,7 +6,7 @@ using System.Linq;
 public class MyBot : IChessBot
 {
 
-    public int[,,] history = new int[2,64,64];
+    public int[,,] history = new int[2, 64, 64];
 
     public int[]
         // null, pawn, knight, bishop, rook, queen, king
@@ -14,6 +14,7 @@ public class MyBot : IChessBot
             { 0, 82, 337, 365, 477, 1025, 0,
               0, 94, 281, 297, 512, 936, 0 },
         reverseScores = new int[200],
+        phaseWeights = { 0, 1, 1, 2, 4, 0 },
         pieceSquareTables;
 
     public int
@@ -167,13 +168,14 @@ public class MyBot : IChessBot
 #endif
 
         int middleGame = 0, endgame = 0,
-            piecesNum = BitboardHelper.GetNumberOfSetBits(board.AllPiecesBitboard ^ GetPawnBitboard(true) ^ GetPawnBitboard(false)) - 5;
+            phase = 0;
 
         foreach (bool white in stackalloc[] { true, false })
         {
-            var enemyKing = board.GetKingSquare(!white);
+            //var enemyKing = board.GetKingSquare(!white);
             // Material
-            for (int piece = 0; piece < 6; ++piece) {
+            for (int piece = 0; piece < 6; ++piece)
+            {
                 ulong bitboard = board.GetPieceBitboard((PieceType)(piece + 1), white);
 
                 while (bitboard != 0)
@@ -182,6 +184,7 @@ public class MyBot : IChessBot
                         index = piece * 64 + square ^ (white ? 0 : 56);
                     middleGame += pieceSquareTables[index];
                     endgame += pieceSquareTables[index + 384];
+                    phase += phaseWeights[piece];
 
                     // king safety
                     //if (piece != 5) endgame += (Math.Abs((square & 7) - enemyKing.File) + Math.Abs((square >> 3) - enemyKing.Rank)) * pieceValues[piece + 1] / 14 / 40;
@@ -208,18 +211,23 @@ public class MyBot : IChessBot
         //    endgame = -endgame;
         //}
 
-        return (middleGame * piecesNum + endgame * (11 - piecesNum)) / (board.IsWhiteToMove ? 11 : -11);
+        if (phase > 24) phase = 24;
+        return (middleGame * phase + endgame * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24);
     }
     public int Search(int plyFromRoot, int plyRemaining, int alpha, int beta)
     {
         // 50??
         if (endSearch || board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100) return 0;
 
+        bool isInCheck = board.IsInCheck();
+        if (isInCheck) ++plyRemaining;
+
         // Lookup value from transposition table
         Entry entry = entries[TTIndex];
         int type = entry.Type,
             value = entry.Value,
-            eval = 0;
+            eval = 0,
+            turn = board.IsWhiteToMove ? 1 : 0;
 
         if (plyFromRoot > 0 &&
             entry.Key == board.ZobristKey &&
@@ -231,7 +239,7 @@ public class MyBot : IChessBot
 #if Stats
             { ++positionsLookedUp; return entry.value; }
 #else
-                return value;
+            return value;
 #endif
         type = Alpha;
 
@@ -247,10 +255,23 @@ public class MyBot : IChessBot
             if (eval > alpha) alpha = eval;
         }
 
-        var moves = board.GetLegalMoves(plyRemaining <= 0);
-        if (moves.Length == 0) return board.IsInCheck() ? -10000000 + plyFromRoot : eval;
+        ////eval = Evaluate();
+        ////if (!isInCheck && eval - 85 * plyRemaining >= beta) return eval - 85 * plyRemaining;
+        //if (plyRemaining >= 2 && plyFromRoot > 0 && !isInCheck)
+        //{
+        //    board.ForceSkipTurn();
 
-        int turn = board.IsWhiteToMove ? 1 : 0;
+        //    eval = -Search(plyFromRoot + 1, plyRemaining - 3 - plyRemaining / 6, -beta, 1 - beta);
+
+        //    board.UndoSkipTurn();
+
+        //    // TODO: add stats
+        //    if (eval >= beta) return eval;
+        //}
+
+        var moves = board.GetLegalMoves(plyRemaining <= 0);
+        if (moves.Length == 0) return isInCheck ? -10000000 + plyFromRoot : eval;
+
         // Move ordering
         for (int i = 0; i < moves.Length; ++i)
         {
@@ -274,7 +295,7 @@ public class MyBot : IChessBot
                 needsFullSearch = (eval = -Search(plyFromRoot + 1, plyRemaining - 2, -beta, -alpha)) > alpha;
 
             if (needsFullSearch)
-                eval = -Search(plyFromRoot + 1, plyRemaining - 1 + (board.IsInCheck() ? 1 : 0), -beta, -alpha);
+                eval = -Search(plyFromRoot + 1, plyRemaining - 1, -beta, -alpha);
 
             board.UndoMove(move);
             if (endSearch) return 0;
@@ -282,7 +303,8 @@ public class MyBot : IChessBot
             {
                 // Store position in Transposition Table
                 entries[TTIndex] = new(board.ZobristKey, plyRemaining, eval, currentBestMove, Beta);
-                if (!move.IsCapture) history[turn, move.StartSquare.Index, move.TargetSquare.Index] += plyRemaining;
+
+                if (!move.IsCapture) history[turn, move.StartSquare.Index, move.TargetSquare.Index] += plyRemaining; // plyRemaining * plyRemaining ??
 #if Stats
                 ++cutoffs;
 #endif
