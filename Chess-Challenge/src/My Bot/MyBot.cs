@@ -284,7 +284,7 @@ public class MyBot : IChessBot
             board.MakeMove(move);
 
             if (i >= 3 && plyRemaining >= 3 && !move.IsCapture)
-                needsFullSearch = (eval = -Search(plyFromRoot + 1, plyRemaining - 2, -beta, -alpha)) > alpha;
+                needsFullSearch = (eval = -Search(plyFromRoot + 1, plyRemaining - 2, -alpha - 1, -alpha)) > alpha;
 
             if (needsFullSearch)
                 eval = -Search(plyFromRoot + 1, plyRemaining - 1, -beta, -alpha);
@@ -294,7 +294,8 @@ public class MyBot : IChessBot
             if (eval >= beta)
             {
                 // Store position in Transposition Table
-                entries[TTIndex] = new(board.ZobristKey, plyRemaining, eval, currentBestMove, Beta);
+                if (needsFullSearch)
+                    entries[TTIndex] = new(board.ZobristKey, plyRemaining, eval, currentBestMove, Beta);
 
                 if (!move.IsCapture)
                 {

@@ -41,10 +41,8 @@ namespace ChessChallenge.Example
 
         static public int Exact = 0, Alpha = 1, Beta = 2, lookupFailed;
 
-        // Better to use static fields when multithreading is off
-        static public ulong TTSize = 1_000_000;
-        static public Entry[] entries = new Entry[TTSize];
-        public ulong TTIndex => board.ZobristKey % TTSize;
+        static public readonly Entry[] entries = new Entry[2097152]; // 2 << 20
+        public ulong TTIndex => board.ZobristKey & 2097151; // (2 << 20) - 1
 
         public decimal[] pieceSquareTablesCompressed = {
         32004456945391047372753631352m,
@@ -115,6 +113,8 @@ namespace ChessChallenge.Example
 
         public PrevBot()
         {
+            //Console.WriteLine(System.Runtime.InteropServices.Marshal.SizeOf<Entry>() * entries.Length / 1024 / 1024); // Transposition table size
+
             pieceSquareTables = pieceSquareTablesCompressed
                 .SelectMany(x => decimal.GetBits(x).Take(3))
                 .SelectMany(BitConverter.GetBytes)
@@ -142,8 +142,7 @@ namespace ChessChallenge.Example
             while (!endSearch) Search(0, ++currentDepth, -inf, inf);
 
             //timeToMove = 100000;
-            //for (; currentDepth <= 6;) Search(0, ++currentDepth, -inf, inf);
-            //Console.WriteLine(timer.MillisecondsElapsedThisTurn);
+            //for (; currentDepth < 6;) Search(0, ++currentDepth, -inf, inf);
 
 #if Stats
         Console.WriteLine("Time: " + timer.MillisecondsElapsedThisTurn +
@@ -231,7 +230,7 @@ namespace ChessChallenge.Example
                 (type == Beta && value >= beta)
                 ))
 #if Stats
-            { ++positionsLookedUp; return entry.value; }
+            { ++positionsLookedUp; return value; }
 #else
                 return value;
 #endif
