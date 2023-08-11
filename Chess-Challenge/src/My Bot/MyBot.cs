@@ -39,10 +39,8 @@ public class MyBot : IChessBot
 
     static public int Exact = 0, Alpha = 1, Beta = 2, lookupFailed;
 
-    // Better to use static fields when multithreading is off
-    static public ulong TTSize = 1_000_000;
-    static public Entry[] entries = new Entry[TTSize];
-    public ulong TTIndex => board.ZobristKey % TTSize;
+    static public readonly Entry[] entries = new Entry[2097152]; // 2 << 20
+    public ulong TTIndex => board.ZobristKey & 2097151; // (2 << 20) - 1
 
     public decimal[] pieceSquareTablesCompressed = {
         32004456945391047372753631352m,
@@ -113,6 +111,8 @@ public class MyBot : IChessBot
 
     public MyBot()
     {
+        //Console.WriteLine(System.Runtime.InteropServices.Marshal.SizeOf<Entry>() * entries.Length / 1024 / 1024); // Transposition table size
+
         pieceSquareTables = pieceSquareTablesCompressed
             .SelectMany(x => decimal.GetBits(x).Take(3))
             .SelectMany(BitConverter.GetBytes)
@@ -135,13 +135,12 @@ public class MyBot : IChessBot
         int currentDepth = 0;
         bestMove = board.GetLegalMoves()[0];
 
-        timeToMove = Math.Max(150, timer.MillisecondsRemaining - 1000) * 4 / 5 / Math.Max(20, 60 - board.PlyCount);
+        timeToMove = Math.Max(150, timer.MillisecondsRemaining - 1000) * 4 / 5 / Math.Max(20, 60 - board.PlyCount);  // TODO: increment
 
         while (!endSearch) Search(0, ++currentDepth, -inf, inf);
 
         //timeToMove = 100000;
-        //for (; currentDepth <= 6;) Search(0, ++currentDepth, -inf, inf);
-        //Console.WriteLine(timer.MillisecondsElapsedThisTurn);
+        //for (; currentDepth < 6;) Search(0, ++currentDepth, -inf, inf);
 
 #if Stats
         Console.WriteLine("Time: " + timer.MillisecondsElapsedThisTurn +
@@ -161,7 +160,7 @@ public class MyBot : IChessBot
         ++positionsEvaluated;
 #endif
 
-        int middleGame = 0, endgame = 0,
+        int middlegame = 0, endgame = 0,
             phase = 0;
 
         foreach (bool white in stackalloc[] { true, false })
@@ -176,7 +175,7 @@ public class MyBot : IChessBot
                 {
                     int square = BitboardHelper.ClearAndGetIndexOfLSB(ref bitboard),
                         index = piece * 64 + square ^ (white ? 0 : 56);
-                    middleGame += pieceSquareTables[index];
+                    middlegame += pieceSquareTables[index];
                     endgame += pieceSquareTables[index + 384];
                     phase += phaseWeights[piece];
 
@@ -189,7 +188,7 @@ public class MyBot : IChessBot
             //middleGame += BitboardHelper.GetNumberOfSetBits(BitboardHelper.GetKingAttacks(board.GetKingSquare(white)) & board.GetPieceBitboard(PieceType.Pawn, white)) * 10;
 
             endgame = -endgame;
-            middleGame = -middleGame;
+            middlegame = -middlegame;
         }
 
         //foreach (bool white in stackalloc[] { true, false })
@@ -205,7 +204,7 @@ public class MyBot : IChessBot
         //    endgame = -endgame;
         //}
         if (phase > 24) phase = 24;
-        return (middleGame * phase + endgame * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24);
+        return (middlegame * phase + endgame * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24);
     }
     public int Search(int plyFromRoot, int plyRemaining, int alpha, int beta)
     {
@@ -229,7 +228,7 @@ public class MyBot : IChessBot
             (type == Beta && value >= beta)
             ))
 #if Stats
-            { ++positionsLookedUp; return entry.value; }
+            { ++positionsLookedUp; return value; }
 #else
             return value;
 #endif

@@ -11,10 +11,8 @@ namespace ChessChallenge.Example
         public int[,,] history = new int[2, 64, 64];
 
         public int[]
-            // null, pawn, knight, bishop, rook, queen, king
             pieceValues =
-                { 0, 82, 337, 365, 477, 1025, 0,
-              0, 94, 281, 297, 512, 936, 0 },
+                { 0, 82, 337, 365, 477, 1025, 0, 94, 281, 297, 512, 936, 0 },
             reverseScores = new int[200],
             phaseWeights = { 0, 1, 1, 2, 4, 0 },
             pieceSquareTables,
@@ -123,12 +121,8 @@ namespace ChessChallenge.Example
                 .Select(x => x * 375 / 255 - 176)
                 .ToArray();
 
-            for (int i = 0; i < 384; ++i)
-            {
-                pieceSquareTables[i] += pieceValues[i / 64 + 1];
-                pieceSquareTables[i + 384] += pieceValues[i / 64 + 8];
-                //Console.WriteLine(pieceValues[i / 64 + 1] + " " + pieceValues[i / 64 + 8]);
-            }
+            for (int i = 0; i < 768;)
+                pieceSquareTables[i] += pieceValues[i++ / 64 + 1];
         }
 
         public Move Think(Board board_param, Timer timer_param)
@@ -143,7 +137,7 @@ namespace ChessChallenge.Example
             int currentDepth = 0;
             bestMove = board.GetLegalMoves()[0];
 
-            timeToMove = Math.Max(150, timer.MillisecondsRemaining - 1000) * 4 / 5 / Math.Max(20, 60 - board.PlyCount);
+            timeToMove = Math.Max(150, timer.MillisecondsRemaining - 1000) * 4 / 5 / Math.Max(20, 60 - board.PlyCount);  // TODO: increment
 
             while (!endSearch) Search(0, ++currentDepth, -inf, inf);
 
@@ -163,15 +157,13 @@ namespace ChessChallenge.Example
             return bestMove;
         }
 
-        public ulong GetPawnBitboard(bool white) => board.GetPieceBitboard(PieceType.Pawn, white);
-
         public int Evaluate()
         {
 #if Stats
         ++positionsEvaluated;
 #endif
 
-            int middleGame = 0, endgame = 0,
+            int middlegame = 0, endgame = 0,
                 phase = 0;
 
             foreach (bool white in stackalloc[] { true, false })
@@ -186,7 +178,7 @@ namespace ChessChallenge.Example
                     {
                         int square = BitboardHelper.ClearAndGetIndexOfLSB(ref bitboard),
                             index = piece * 64 + square ^ (white ? 0 : 56);
-                        middleGame += pieceSquareTables[index];
+                        middlegame += pieceSquareTables[index];
                         endgame += pieceSquareTables[index + 384];
                         phase += phaseWeights[piece];
 
@@ -196,10 +188,10 @@ namespace ChessChallenge.Example
                 }
 
                 //King shield
-                //middleGame += BitboardHelper.GetNumberOfSetBits(BitboardHelper.GetKingAttacks(board.GetKingSquare(white)) & GetPawnBitboard(white)) * 10;
+                //middleGame += BitboardHelper.GetNumberOfSetBits(BitboardHelper.GetKingAttacks(board.GetKingSquare(white)) & board.GetPieceBitboard(PieceType.Pawn, white)) * 10;
 
                 endgame = -endgame;
-                middleGame = -middleGame;
+                middlegame = -middlegame;
             }
 
             //foreach (bool white in stackalloc[] { true, false })
@@ -215,12 +207,11 @@ namespace ChessChallenge.Example
             //    endgame = -endgame;
             //}
             if (phase > 24) phase = 24;
-            return (middleGame * phase + endgame * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24);
+            return (middlegame * phase + endgame * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24);
         }
         public int Search(int plyFromRoot, int plyRemaining, int alpha, int beta)
         {
-            // 50??
-            if (endSearch || board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100) return 0;
+            if (endSearch || board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.IsFiftyMoveDraw()) return 0;
 
             bool isInCheck = board.IsInCheck();
             if (isInCheck) ++plyRemaining;
@@ -281,7 +272,7 @@ namespace ChessChallenge.Example
                 Move move = moves[i];
                 reverseScores[i] =
                     -(move == entries[TTIndex].Move ? 10000000 : // hashed move
-                    move.IsCapture ? pieceValues[(int)move.CapturePieceType + 7] * (board.SquareIsAttackedByOpponent(move.TargetSquare) ? 100 : 1000) - pieceValues[(int)move.MovePieceType + 7] : // captures
+                    move.IsCapture ? pieceValues[(int)move.CapturePieceType + 6] * (board.SquareIsAttackedByOpponent(move.TargetSquare) ? 100 : 1000) - pieceValues[(int)move.MovePieceType + 6] : // captures
                     move.RawValue == killerMoveA[plyFromRoot] || move.RawValue == killerMoveB[plyFromRoot] ? 8000 : // killer moves
                     history[turn, move.StartSquare.Index, move.TargetSquare.Index]); // history
             }
