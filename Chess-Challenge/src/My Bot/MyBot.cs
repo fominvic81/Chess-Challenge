@@ -59,7 +59,7 @@ public class MyBot : IChessBot
         78923631730433407317849802775m,
         77047311986497968612621228534m,
         77686654311914626649806350356m,
-        77666187336355102871321442548m,
+        77666187336355102871305386228m,
         72725350585174353650741151488m,
         5267261184081420082734493672m,
         3144557932460502999946172176m,
@@ -248,7 +248,7 @@ public class MyBot : IChessBot
 #if Stats
             { ++cutoffs; return beta; }
 #else
-                return beta;
+                return eval;
 #endif
             if (eval > alpha) alpha = eval;
         }
@@ -287,9 +287,10 @@ public class MyBot : IChessBot
         for (int i = 0; i < moves.Length; ++i)
         {
             Move move = moves[i];
-            bool needsFullSearch = true;
+
             board.MakeMove(move);
 
+            bool needsFullSearch = true;
             if (i >= 3 && plyRemaining >= 3 && !move.IsCapture)
                 needsFullSearch = (eval = -Search(plyFromRoot + 1, plyRemaining - 2, -alpha - 1, -alpha)) > alpha;
 
@@ -302,7 +303,7 @@ public class MyBot : IChessBot
             {
                 // Store position in Transposition Table
                 if (needsFullSearch)
-                    entries[TTIndex] = new(board.ZobristKey, plyRemaining, eval, currentBestMove, Beta);
+                    entries[TTIndex] = new(board.ZobristKey, plyRemaining, eval, move, Beta);
 
                 if (!move.IsCapture)
                 {
@@ -313,7 +314,7 @@ public class MyBot : IChessBot
 #if Stats
                 ++cutoffs;
 #endif
-                return beta;
+                return eval;
             }
             if (eval > alpha)
             {
