@@ -91,6 +91,10 @@ namespace ChessChallenge.Application
             {
                 controller.StartNewMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.NegamaxV1);
             }
+            if (NextButtonInRow("MyBot vs V1", ref buttonPos, spacing, buttonSize))
+            {
+                controller.StartNewMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.V1);
+            }
             if (NextButtonInRow("MyBot vs PrevBot", ref buttonPos, spacing, buttonSize))
             {
                 controller.StartNewMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.PrevBot);

@@ -17,6 +17,7 @@ namespace ChessChallenge.Application
             PrevBot,
             NegamaxV1,
             LiteBlueV5,
+            V1,
         }
 
         // Bot match state
