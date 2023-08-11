@@ -183,15 +183,12 @@ namespace Program
         public static decimal[] CompressPSTs()
         {
             byte[] bytes = new byte[PieceSquareTables.Length * 64];
-            int min = int.MaxValue;
             int max = int.MinValue;
             foreach (var table in PieceSquareTables)
             {
                 foreach (int value in table)
                 {
-                    min = Math.Min(min, value);
-                    max = Math.Max(max, value);
-
+                    max = Math.Max(max, Math.Abs(value));
                 }
             }
             int i = 0;
@@ -199,12 +196,11 @@ namespace Program
             {
                 foreach (int value in table)
                 {
-                    int range = max - min;
-                    int mapped = (value - min) * 255 / range;
+                    int mapped = value * 127 / max;
                     bytes[i++] = (byte)mapped;
                 }
             }
-            Console.WriteLine("Min: " + min + ", Max: " + max);
+            Console.WriteLine("Max " + max);
             // -167 187 = 375
             // -9 = bias
 
@@ -213,27 +209,34 @@ namespace Program
 
         public static int[] DecompressPSTs(decimal[] compressed)
         {
-            return compressed.SelectMany(decimal.GetBits).Where((x, i) => i % 4 != 3).SelectMany(BitConverter.GetBytes).Select((byte x) => x * 375 / 255 - 167 - 9).ToArray();
+            return compressed.SelectMany(decimal.GetBits).Where((x, i) => i % 4 != 3).SelectMany(BitConverter.GetBytes).Select((byte x) => (sbyte)x * 187 / 127).ToArray();
         }
 
         static void Main()
         {
 
-            //decimal[] compressed = CompressPSTs();
-            //int[] decompressed = DecompressPSTs(compressed);
-            //int[] original = PieceSquareTables.SelectMany((int[] x) => x).ToArray();
+            decimal[] compressed = CompressPSTs();
+            int[] decompressed = DecompressPSTs(compressed);
+            int[] original = PieceSquareTables.SelectMany((int[] x) => x).ToArray();
 
-            //int maxDiff = 0;
-            //for (int i = 0; i < original.Length; ++i)
+            int maxDiff = 0;
+            for (int i = 0; i < original.Length; ++i)
+            {
+                int diff = Math.Abs(original[i] - decompressed[i]);
+                maxDiff = Math.Max(diff, maxDiff);
+            }
+
+            Console.WriteLine("Max difference: " + maxDiff);
+
+
+            PrintDecimalList(compressed);
+
+            //for (int i = 0; i < 12 * 8 * 8; ++i)
             //{
-            //    int diff = Math.Abs(original[i] - decompressed[i]);
-            //    maxDiff = Math.Max(diff, maxDiff);
+            //    if (i % 64 == 0) Console.WriteLine();
+            //    if (i % 8 == 0) Console.WriteLine();
+            //    Console.Write(decompressed[i] + " ");
             //}
-
-            //Console.WriteLine("Max difference: " + maxDiff);
-
-
-            //PrintDecimalList(compressed);
         }
 
     }
