@@ -257,20 +257,30 @@ public class MyBot : IChessBot
         if (!isInCheck && beta - alpha == 1 && plyFromRoot > 2 && plyRemaining > 0) {
 
             eval = Evaluate() - 65 * plyRemaining;
-            if (eval >= beta) return eval;
+            if (eval >= beta)
+#if Stats
+            { ++cutoffs; return beta; }
+#else
+                return eval;
+#endif
+
+            if (plyRemaining >= 2)
+            {
+                board.ForceSkipTurn();
+
+                eval = -Search(plyFromRoot + 1, plyRemaining - 3 - plyRemaining / 6, -beta, 1 - beta);
+
+                board.UndoSkipTurn();
+
+                if (eval >= beta)
+#if Stats
+            { ++cutoffs; return beta; }
+#else
+                    return eval;
+#endif
+            }
 
         }
-        //if (plyRemaining >= 3 && plyFromRoot > 0 && !isInCheck && !pv)
-        //{
-        //    board.ForceSkipTurn();
-
-        //    eval = -Search(plyFromRoot + 1, plyRemaining - 3 - plyRemaining - 6, -beta, 1 - beta, false);
-
-        //    board.UndoSkipTurn();
-
-        //    // TODO: add stats
-        //    if (eval >= beta) return eval;
-        //}
 
         var moves = board.GetLegalMoves(plyRemaining <= 0);
         if (moves.Length == 0) return isInCheck ? -10000000 + plyFromRoot : eval;

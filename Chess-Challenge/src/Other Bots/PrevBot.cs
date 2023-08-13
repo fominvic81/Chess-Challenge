@@ -258,20 +258,23 @@ namespace ChessChallenge.Example
             // plyRemaining > 3 ??
             if (!isInCheck && beta - alpha == 1 && plyFromRoot > 2 && plyRemaining > 0)
             {
+
                 eval = Evaluate() - 65 * plyRemaining;
                 if (eval >= beta) return eval;
+
+                if (plyRemaining >= 6)
+                {
+                    board.ForceSkipTurn();
+
+                    eval = -Search(plyFromRoot + 1, plyRemaining - 3, -beta, 1 - beta);
+
+                    board.UndoSkipTurn();
+
+                    // TODO: add stats
+                    if (eval >= beta) return eval;
+                }
+
             }
-            //if (plyRemaining >= 3 && plyFromRoot > 0 && !isInCheck && !pv)
-            //{
-            //    board.ForceSkipTurn();
-
-            //    eval = -Search(plyFromRoot + 1, plyRemaining - 3 - plyRemaining - 6, -beta, 1 - beta, false);
-
-            //    board.UndoSkipTurn();
-
-            //    // TODO: add stats
-            //    if (eval >= beta) return eval;
-            //}
 
             var moves = board.GetLegalMoves(plyRemaining <= 0);
             if (moves.Length == 0) return isInCheck ? -10000000 + plyFromRoot : eval;
