@@ -194,7 +194,7 @@ namespace ChessChallenge.Example
                 }
 
                 //King shield
-                //middleGame += BitboardHelper.GetNumberOfSetBits(BitboardHelper.GetKingAttacks(board.GetKingSquare(white)) & board.GetPieceBitboard(PieceType.Pawn, white)) * 10;
+                //middlegame += BitboardHelper.GetNumberOfSetBits(BitboardHelper.GetKingAttacks(board.GetKingSquare(white)) & board.GetPieceBitboard(PieceType.Pawn, white)) * 10;
 
                 endgame = -endgame;
                 middlegame = -middlegame;
@@ -202,7 +202,7 @@ namespace ChessChallenge.Example
 
             //foreach (bool white in stackalloc[] { true, false })
             //{
-            //    if (piecesNum < 4 && endgame * (white ? 1 : -1) > 300)
+            //    if (phase < 12 && endgame * (white ? 1 : -1) > 300)
             //    {
             //        Square king = board.GetKingSquare(white), enemyKing = board.GetKingSquare(!white);
             //        int centerManhattanDistance = (enemyKing.File ^ ((enemyKing.File) - 4) >> 8) + (enemyKing.Rank ^ ((enemyKing.Rank) - 4) >> 8);
@@ -255,13 +255,17 @@ namespace ChessChallenge.Example
                 if (eval > alpha) alpha = eval;
             }
 
-            ////eval = Evaluate();
-            ////if (!isInCheck && eval - 85 * plyRemaining >= beta) return eval - 85 * plyRemaining;
-            //if (plyRemaining >= 2 && plyFromRoot > 0 && !isInCheck)
+            // plyRemaining > 3 ??
+            if (!isInCheck && beta - alpha == 1 && plyFromRoot > 2 && plyRemaining > 0)
+            {
+                eval = Evaluate() - 65 * plyRemaining;
+                if (eval >= beta) return eval;
+            }
+            //if (plyRemaining >= 3 && plyFromRoot > 0 && !isInCheck && !pv)
             //{
             //    board.ForceSkipTurn();
 
-            //    eval = -Search(plyFromRoot + 1, plyRemaining - 3 - plyRemaining / 6, -beta, 1 - beta);
+            //    eval = -Search(plyFromRoot + 1, plyRemaining - 3 - plyRemaining - 6, -beta, 1 - beta, false);
 
             //    board.UndoSkipTurn();
 
@@ -277,7 +281,7 @@ namespace ChessChallenge.Example
             {
                 Move move = moves[i];
                 reverseScores[i] =
-                    -(move == entries[TTIndex].Move ? 10000000 : // hashed move
+                    -(move == entry.Move ? 10000000 : // hashed move
                     move.IsCapture ? pieceValues[(int)move.CapturePieceType + 6] * (board.SquareIsAttackedByOpponent(move.TargetSquare) ? 100 : 1000) - pieceValues[(int)move.MovePieceType + 6] : // captures
                     move.RawValue == killerMoveA[plyFromRoot] || move.RawValue == killerMoveB[plyFromRoot] ? 8000 : // killer moves
                     history[turn, move.StartSquare.Index, move.TargetSquare.Index]); // history
@@ -301,19 +305,11 @@ namespace ChessChallenge.Example
 
                 board.UndoMove(move);
                 if (endSearch) return 0;
-                if (eval > alpha)
-                {
-                    type = Exact;
-                    currentBestMove = move;
-                    alpha = eval;
-                    if (plyFromRoot == 0) bestMove = currentBestMove;
-                }
-
-                if (alpha >= beta)
+                if (eval >= beta)
                 {
                     // Store position in Transposition Table
                     if (needsFullSearch)
-                        entries[TTIndex] = new(board.ZobristKey, plyRemaining, eval, currentBestMove, Beta);
+                        entries[TTIndex] = new(board.ZobristKey, plyRemaining, eval, move, Beta);
 
                     if (!move.IsCapture)
                     {
@@ -325,6 +321,13 @@ namespace ChessChallenge.Example
                 ++cutoffs;
 #endif
                     return eval;
+                }
+                if (eval > alpha)
+                {
+                    type = Exact;
+                    currentBestMove = move;
+                    alpha = eval;
+                    if (plyFromRoot == 0) bestMove = currentBestMove;
                 }
             }
 
