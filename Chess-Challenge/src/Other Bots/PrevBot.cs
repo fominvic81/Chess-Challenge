@@ -260,18 +260,27 @@ namespace ChessChallenge.Example
             {
 
                 eval = Evaluate() - 65 * plyRemaining;
-                if (eval >= beta) return eval;
+                if (eval >= beta)
+#if Stats
+            { ++cutoffs; return beta; }
+#else
+                    return eval;
+#endif
 
-                if (plyRemaining >= 6)
+                if (plyRemaining >= 2)
                 {
                     board.ForceSkipTurn();
 
-                    eval = -Search(plyFromRoot + 1, plyRemaining - 3, -beta, 1 - beta);
+                    eval = -Search(plyFromRoot + 1, plyRemaining - 3 - plyRemaining / 6, -beta, 1 - beta);
 
                     board.UndoSkipTurn();
 
-                    // TODO: add stats
-                    if (eval >= beta) return eval;
+                    if (eval >= beta)
+#if Stats
+            { ++cutoffs; return beta; }
+#else
+                        return eval;
+#endif
                 }
 
             }

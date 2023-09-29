@@ -11,14 +11,13 @@ public class MyBot : IChessBot
     public int[]
         pieceValues =
             { 0, 82, 337, 365, 477, 1025, 0, 94, 281, 297, 512, 936, 0 },
-        reverseScores = new int[200],
         phaseWeights = { 0, 1, 1, 2, 4, 0 },
         pieceSquareTables,
+        //reverseScores = new int[256],
         killerMoveA = new int[256],
         killerMoveB = new int[256];
 
-    public int
-        inf = 1000000000,
+    public double
         timeToMove;
 
     public record struct Entry(ulong Key, int Depth, int Value, Move Move, int Type);
@@ -35,9 +34,7 @@ public class MyBot : IChessBot
 
     public Move bestMove;
 
-    public bool endSearch => timer.MillisecondsElapsedThisTurn > timeToMove;
-
-    static public int Exact = 0, Alpha = 1, Beta = 2, lookupFailed;
+    public bool EndSearch => timer.MillisecondsElapsedThisTurn > timeToMove;
 
     static public readonly Entry[] entries = new Entry[2097152]; // 2 << 20
     public ulong TTIndex => board.ZobristKey & 2097151; // (2 << 20) - 1
@@ -142,12 +139,12 @@ public class MyBot : IChessBot
         int currentDepth = 0;
         bestMove = board.GetLegalMoves()[0];
 
-        timeToMove = Math.Max(150, timer.MillisecondsRemaining - 1000) * 4 / 5 / Math.Max(20, 60 - board.PlyCount);  // TODO: increment
+        timeToMove = Math.Max(150, timer.MillisecondsRemaining - 1000) / Math.Max(20, 60 - board.PlyCount) * 0.8;
 
-        while (!endSearch) Search(0, ++currentDepth, -inf, inf);
+        while (!EndSearch) Search(0, ++currentDepth, -100_000_000, 100_000_000);
 
         //timeToMove = 100000;
-        //for (; currentDepth < 6;) Search(0, ++currentDepth, -inf, inf);
+        //for (; currentDepth < 6;) Search(0, ++currentDepth, -100_000_000, 100_000_000);
 
 #if Stats
         Console.WriteLine("Time: " + timer.MillisecondsElapsedThisTurn +
@@ -215,7 +212,7 @@ public class MyBot : IChessBot
     }
     public int Search(int plyFromRoot, int plyRemaining, int alpha, int beta)
     {
-        if (endSearch || board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.IsFiftyMoveDraw()) return 0;
+        if (EndSearch || board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.IsFiftyMoveDraw()) return 0;
 
         bool isInCheck = board.IsInCheck();
         if (isInCheck) ++plyRemaining;
@@ -225,21 +222,22 @@ public class MyBot : IChessBot
         int type = entry.Type,
             value = entry.Value,
             eval = 0,
-            turn = board.IsWhiteToMove ? 1 : 0;
+            turn = board.IsWhiteToMove ? 1 : 0,
+            bestEval = -100_000_000;
 
         if (plyFromRoot > 0 &&
             entry.Key == board.ZobristKey &&
             entry.Depth >= plyRemaining && (
-            (type == Exact) ||
-            (type == Alpha && value <= alpha) ||
-            (type == Beta && value >= beta)
+            (type == 0) ||
+            (type == 1 && value <= alpha) ||
+            (type == 2 && value >= beta)
             ))
 #if Stats
             { ++positionsLookedUp; return value; }
 #else
             return value;
 #endif
-        type = Alpha;
+        type = 1;
 
         if (plyRemaining <= 0)
         {
@@ -250,7 +248,7 @@ public class MyBot : IChessBot
 #else
                 return eval;
 #endif
-            if (eval > alpha) alpha = eval;
+            if (eval > bestEval) bestEval = eval;
         }
 
         // plyRemaining > 3 ??
@@ -285,6 +283,7 @@ public class MyBot : IChessBot
         var moves = board.GetLegalMoves(plyRemaining <= 0);
         if (moves.Length == 0) return isInCheck ? -10000000 + plyFromRoot : eval;
 
+        var reverseScores = new int[moves.Length];
         // Move ordering
         for (int i = 0; i < moves.Length; ++i)
         {
@@ -295,7 +294,7 @@ public class MyBot : IChessBot
                 move.RawValue == killerMoveA[plyFromRoot] || move.RawValue == killerMoveB[plyFromRoot] ? 8000 : // killer moves
                 history[turn, move.StartSquare.Index, move.TargetSquare.Index]); // history
         }
-        Array.Sort(reverseScores, moves, 0, moves.Length);
+        Array.Sort(reverseScores, moves);
 
         Move currentBestMove = moves[0];
 
@@ -313,12 +312,18 @@ public class MyBot : IChessBot
                 eval = -Search(plyFromRoot + 1, plyRemaining - 1, -beta, -alpha);
 
             board.UndoMove(move);
-            if (endSearch) return 0;
+            if (EndSearch) return 0;
+
+            if (eval > bestEval)
+            {
+                currentBestMove = move;
+                bestEval = eval;
+            }
+
             if (eval >= beta)
             {
                 // Store position in Transposition Table
-                if (needsFullSearch)
-                    entries[TTIndex] = new(board.ZobristKey, plyRemaining, eval, move, Beta);
+                entries[TTIndex] = new(board.ZobristKey, plyRemaining, bestEval, currentBestMove, 2);
 
                 if (!move.IsCapture)
                 {
@@ -333,16 +338,15 @@ public class MyBot : IChessBot
             }
             if (eval > alpha)
             {
-                type = Exact;
-                currentBestMove = move;
+                type = 0;
                 alpha = eval;
                 if (plyFromRoot == 0) bestMove = currentBestMove;
             }
         }
 
         // Store position in Transposition Table
-        entries[TTIndex] = new(board.ZobristKey, plyRemaining, alpha, currentBestMove, type);
+        entries[TTIndex] = new(board.ZobristKey, plyRemaining, bestEval, currentBestMove, type);
 
-        return alpha;
+        return bestEval;
     }
 }
